@@ -1,0 +1,325 @@
+[[query.account.cnt]]
+with tem as (
+    select ta.id account_id,ta.name,ta.login_name,ta.create_time,tar.role_id,ta.account_status ,tr.name role_name,tr.role_code,ta.account_type,
+    case when ta.account_status=1 then '有效' else '无效' end status_desc
+    from t_account ta
+    INNER JOIN t_acct_role tar ON ta.id = tar.account_id  and tar.status=1
+    INNER JOIN t_role  tr ON  tr.role_code!=?admin_role_code and tar.role_id=tr.id
+    where 1 = 1
+    {% if account_type == 5 %}
+    and ta.account_type=?account_type and ta.create_account_id = ?account_id
+    {% endif%}
+    {% if account_type == 1 %}
+    and (ta.account_type=5 or ta.account_type=1)
+    {% endif%}
+    {% if account_type == 2 || account_type == 4 %}
+    and ta.account_type=?account_type
+    {% endif%}
+    {% if account_type == 2 %}
+    and ta.supplier_id=?supplier_id
+    {% endif%}
+    {% if account_type == 4 %}
+    and ta.warehouse_id=?warehouse_id
+    {% endif%}
+    {% if role_id != "" %}
+    and ta.id in (select account_id from t_acct_role where role_id =?role_id and status=1)
+    {% endif%}
+    {% if status > 0 %}
+    and ta.account_status =?status
+    {% endif%}
+    {% if keyword!="" %}
+    and (ta.name ilike '%'||?keyword||'%' or ta.login_name ilike '%'||?keyword||'%' or
+    CnFirstChar(ta.name) ilike '%'||?keyword||'%' or CnFirstChar(ta.login_name) ilike '%'||?keyword||'%'
+    )
+    {% endif%}
+    ORDER BY cast(ta.id as integer) DESC
+)
+select count(*) cnt from (
+    select t2.account_id from tem t2 group by t2.account_id
+)z
+
+[[query.account.list]]
+with tem as (
+    select ta.id account_id,ta.name,ta.login_name,ta.create_time,tar.role_id,ta.account_status ,tr.name role_name,tr.role_code,ta.account_type,
+    case when ta.account_status=1 then '有效' else '无效' end status_desc,
+    case when ta.account_type = 1 then '中心' when ta.account_type = 5 then '客户' else '其他' end type_desc
+    from t_account ta
+    INNER JOIN t_acct_role tar ON ta.id = tar.account_id  and tar.status=1
+    INNER JOIN t_role  tr ON  tr.role_code!=?admin_role_code and tar.role_id=tr.id
+    where 1 = 1
+    {% if account_type == 5 %}
+    and ta.account_type=?account_type and ta.create_account_id = ?account_id
+    {% endif%}
+    {% if account_type == 1 %}
+    and (ta.account_type=5 or ta.account_type=1)
+    {% endif%}
+    {% if account_type == 2 || account_type == 4 %}
+    and ta.account_type=?account_type
+    {% endif%}
+    {% if account_type == 2 %}
+    and ta.supplier_id=?supplier_id
+    {% endif%}
+    {% if account_type == 4 %}
+    and ta.warehouse_id=?warehouse_id
+    {% endif%}
+    {% if role_id != "" %}
+    and ta.id in (select account_id from t_acct_role where role_id =?role_id and status=1)
+    {% endif%}
+    {% if status > 0 %}
+    and ta.account_status =?status
+    {% endif%}
+    {% if keyword!="" %}
+    and (ta.name ilike '%'||?keyword||'%' or ta.login_name ilike '%'||?keyword||'%' or
+    CnFirstChar(ta.name) ilike '%'||?keyword||'%' or CnFirstChar(ta.login_name) ilike '%'||?keyword||'%'
+    )
+    {% endif%}
+    ORDER BY cast(ta.id as integer) DESC
+)
+select * from tem t where t.account_id in (
+    select t2.account_id from tem t2 group by t2.account_id
+    ORDER BY cast(t2.account_id as integer) DESC
+    limit ?page_size offset (?page_num - 1) * ?page_size
+)
+
+[[query.send.message.account]]
+with tem as (
+  select * from t_account where 1=1
+  and (
+     (supplier_id in ('-1'
+                 {% for supplierId in suppliers %}
+                    ,'{{supplierId}}'
+                 {% endfor %}
+             )
+       or id in (
+                select account_id from t_account_child_customer where customer_id in ('-1'
+                    {% for customerId in customers %}
+                        ,'{{customerId}}'
+                    {% endfor %})
+            )
+       or warehouse_id in ('-1'
+                 {% for warehouseId in warehouses %}
+                    ,'{{warehouseId}}'
+                 {% endfor %}
+             )
+     )
+     {% if type == 2 %}
+         or (supplier_id = '0' and customer_id = '0' and warehouse_id = '0')
+     {% endif%}
+ )
+)
+select  DISTINCT  ar.account_id
+from tem ,t_acct_role ar
+where tem.id = ar.account_id
+      and ar.role_id in (
+          select id from t_role
+          where role_code in (''
+              {% for roleCode in roles %}
+                ,'{{roleCode}}'
+              {% endfor %}
+          )
+      )
+
+[[get.goods.by.supplier.account.cnt]]
+WITH tmp as (
+  SELECT a.id,sgc.goods_id,
+    CASE WHEN argp.status = 1 THEN  1 ELSE 2 END as status
+   FROM t_account a
+INNER JOIN t_supplier_goods_config sgc ON sgc.supplier_id = a.supplier_id AND sgc.status = 1
+LEFT  JOIN t_account_role_goods_priv argp ON argp.account_id = a.id AND role_id = (SELECT id FROM t_role WHERE role_code = ?role_code) AND sgc.goods_id = argp.goods_id
+WHERE a.id=?account_id
+)
+SELECT
+ count(1) cnt
+FROM tmp t
+LEFT JOIN t_goods g ON g.id = t.goods_id
+WHERE 1=1
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if keyword!="" %}
+and (g.name ilike '%'||?keyword||'%' or  g.goods_code ilike '%'||?keyword||'%')
+{% endif%}
+{% if status!="" %}
+and t.status = ?status
+{% endif%}
+
+[[get.goods.by.supplier.account.list]]
+WITH tmp as (
+  SELECT a.id account_id,sgc.goods_id,argp.id,
+    CASE WHEN argp.status = 1 THEN  1 ELSE 2 END as status
+   FROM t_account a
+INNER JOIN t_supplier_goods_config sgc ON sgc.supplier_id = a.supplier_id AND sgc.status = 1
+LEFT  JOIN t_account_role_goods_priv argp ON argp.account_id = a.id AND argp.role_id = (SELECT id FROM t_role WHERE role_code = ?role_code) AND sgc.goods_id = argp.goods_id
+WHERE a.id=?account_id
+)
+SELECT
+  t.*,
+  g.name goods_name,
+  g.unit,
+  pc1.id cate_lv1_id,
+  pc1.name cate_lv1_name,
+  pc2.id cate_lv2_id,
+  pc2.name cate_lv2_name,
+  p.id   prd_id,
+  p.name prd_name,
+  CASE WHEN t.status = 1 THEN  '已配置' ELSE '未配置' END as status_desc
+FROM tmp t
+LEFT JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+WHERE 1=1
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if keyword!="" %}
+and (g.name ilike '%'||?keyword||'%' or  g.goods_code ilike '%'||?keyword||'%')
+{% endif%}
+{% if status!="" %}
+and t.status = ?status
+{% endif%}
+order by g.create_time desc
+ limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[get.cus.by.manage.account.cnt]]
+WITH tmp as(
+    SELECT
+    c.id customer_id,
+      c.parent_customer_id,
+  c.name customer_name,
+    c.province_id,
+    c.city_id,
+    c.district_id,
+  acc.id account_id,
+  CASE WHEN arcp.status = 1 THEN  1 ELSE  2 END  status
+FROM t_customer c
+INNER JOIN t_account acc ON acc.id = ?account_id
+LEFT JOIN t_account_role_cust_priv arcp ON arcp.account_id = acc.id AND arcp.role_id = (SELECT id FROM t_role WHERE role_code = ?role_code) AND c.id = arcp.customer_id
+WHERE c.parent_customer_id !='0' and c.leaf = 1 and c.status = 1
+)
+  SELECT  count(1) cnt
+  FROM tmp t
+WHERE 1=1
+{% if parent_customer_id!="" %}
+and t.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if province_id!="" %}
+and t.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+and t.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+and t.district_id=?district_id
+{% endif%}
+{% if status!="" %}
+and t.status = ?status
+{% endif%}
+{% if keyword!="" %}
+and (t.customer_name ilike '%'||?keyword||'%')
+{% endif%}
+
+[[get.cus.by.manage.account.list]]
+WITH tmp as(
+    SELECT
+    c.id customer_id,
+      c.parent_customer_id,
+  c.name customer_name,
+    c.province_id,
+    c.city_id,
+    c.district_id,
+  acc.id account_id,
+  CASE WHEN arcp.status = 1 THEN  1 ELSE  2 END  status
+FROM t_customer c
+INNER JOIN t_account acc ON acc.id = ?account_id
+LEFT JOIN t_account_role_cust_priv arcp ON arcp.account_id = acc.id AND arcp.role_id = (SELECT id FROM t_role WHERE role_code = ?role_code) AND c.id = arcp.customer_id
+WHERE c.parent_customer_id !='0' and c.leaf = 1 and c.status =1
+)
+  SELECT t.*,c.name parent_customer_name,p.name province_name,ci.name city_name,d.name district_name,'中国' as country_name,
+  CASE WHEN t.status = 1 THEN '已配置' ELSE '未配置' END status_desc
+  FROM tmp t
+INNER JOIN t_customer c ON c.id = t.parent_customer_id
+INNER JOIN t_province p ON p.id = t.province_id
+INNER JOIN t_city ci ON ci.id =t.city_id
+INNER JOIN t_district d ON d.id = t.district_id
+WHERE 1=1
+{% if parent_customer_id!="" %}
+and t.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if province_id!="" %}
+and t.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+and t.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+and t.district_id=?district_id
+{% endif%}
+{% if status!="" %}
+and t.status = ?status
+{% endif%}
+{% if keyword!="" %}
+and (t.customer_name ilike '%'||?keyword||'%')
+{% endif%}
+order by t.province_id,t.city_id,t.district_id,t.customer_id
+
+[[get.acct.storage.type.cnt]]
+select count(*) cnt from (
+    select DISTINCT st.id storage_type_id,st.name storage_type_name from t_storage s
+    left join t_storage_type st on s.storage_type_id = st.id
+    where s.status = 1 and customer_id in (
+        select a.id from t_customer a
+        left join (
+          select * from t_customer where id in ('0'
+             {% for customer_id in customer_ids %}
+                 ,'{{customer_id}}'
+             {% endfor %}
+          )
+        ) b on (a.tree_ids like '%,' || b.id ||',%' or a.tree_ids like '%,'|| b.id
+             or a.tree_ids like b.id||',%' or a.tree_ids like b.id or a.id = b.id)
+        where b.id is not null and a.leaf = 1 and a.status != 3
+    )
+) x
+
+[[get.acct.storage.type.list]]
+select DISTINCT st.id storage_type_id,st.name storage_type_name from t_storage s
+left join t_storage_type st on s.storage_type_id = st.id
+where s.status = 1 and customer_id in (
+    select a.id from t_customer a
+    left join (
+      select * from t_customer where id in ('0'
+         {% for customer_id in customer_ids %}
+             ,'{{customer_id}}'
+         {% endfor %}
+      )
+    ) b on (a.tree_ids like '%,' || b.id ||',%' or a.tree_ids like '%,'|| b.id
+         or a.tree_ids like b.id||',%' or a.tree_ids like b.id or a.id = b.id)
+    where b.id is not null and a.leaf = 1 and a.status != 3
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,181 @@
+[[shoppingcarts.rating.list]]
+WITH tem as(
+select ta.id,ta.account_id,
+      ta.customer_id,ta.cate_lv1_id,ta.cate_lv2_id,ta.prd_id,ta.goods_id,
+      ta.supplier_id,
+      case when sa.id ='0' then supp.name else sa.supplier_alias_name end supplier_name,
+      ratfd.sale_to_customer_price first_price,
+      ta.amount,
+      ta.select_status,
+      ta.disp_idx,
+      ta.order_memo,
+      go.name as  name,
+      go.main_pic_url  main_pic_url,
+      un.id  unit_id,
+      un.name unit_name,
+      ta.goods_id  supplier_goods_id,
+       ratfd.sale_to_customer_price sale_to_customer_price,
+      (ta.amount*(ratfd.sale_to_customer_price)) subtotal,
+        ta.rating_form_detail_id,ratd.id t_rating_form_id,
+      ratd.is_using is_using
+     from t_shopping_cart ta
+    left JOIN  t_goods go on go.id= ta.goods_id and go.status=1
+     LEFT JOIN  t_rating_form_detail ratfd on ratfd.id=ta.rating_form_detail_id and ratfd.status=1
+     left JOIN   t_rating_form ratd on ratd.id=ratfd.rating_form_id and ratfd.status=1
+     left JOIN  t_supplier supp  on supp.id= ta.supplier_id and supp.status=1
+      left JOIN  (
+                     SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+                     SELECT '0','','',1
+                           ) sa on sa.id= ta.supplier_alias_id and sa.status=1
+     left join t_unit un on un.id=ta.unit_id
+     where ta.account_id=?account_id and ta.customer_id=?customer_id
+      {% if selected==1 %}
+        and ta.SELECT_STATUS=1
+      {% endif %}
+    order by cast(ta.id as integer)
+)
+    select ta.id,ta.account_id,ta.customer_id,ta.cate_lv1_id,ta.cate_lv2_id,ta.prd_id,ta.goods_id,
+     ta.supplier_id,ta.supplier_name,ta.first_price,
+       ta.amount,
+       ta.select_status,
+      ta.disp_idx,
+      ta.order_memo,
+      ta.name,
+      ta.main_pic_url,
+      ta.unit_id,
+      ta.unit_name,
+      ta.supplier_goods_id,
+      ta.sale_to_customer_price,
+      ta.subtotal,
+      ta.t_rating_form_id,
+      ta.is_using
+    from tem ta
+
+
+
+
+
+
+
+[[shoppingcarts.list.by.account]]
+with t AS (
+  SELECT
+    sc.id                     shopping_cart_id,
+    sc.goods_id,
+    rfd.id rating_form_detail_id,
+    rfd.sale_to_customer_price  sale_price,
+    rfd.sale_to_customer_price buy_price,
+    sc.amount                  order_amount,
+    sc.customer_id             customer_id,
+    sc.supplier_id,
+     sc.supplier_alias_id,
+    u.name unit_name,
+    sc.unit_id,
+    sc.order_memo
+  FROM t_shopping_cart sc
+      INNER JOIN t_rating_form_detail rfd ON sc.rating_form_detail_id = rfd.id
+      INNER JOIN t_unit u on u.id = sc.unit_id
+  WHERE  sc.account_id = ?account_id
+    and  sc.select_status = 1 and sc.amount > 0
+    {% if customer_id != "" %}
+    and sc.customer_id = ?customer_id
+    {% endif %}
+    and sc.customer_id in ( select c.id from t_account_child_customer acc
+                                                       inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                       where account_id = ?account_id)
+    and sc.id in ('0'
+       {% for id in shopping_cart_ids %}
+               ,'{{id}}'
+       {% endfor %}
+    )
+)
+select * from t
+
+[[confirm.goods.by.rating.form]]
+select s.id supplier_id,coalesce(sa.id,'0') supplier_alias_id,cpc.rating_form_detail_id,cpc.rating_form_id from
+t_cust_price_config cpc
+INNER JOIN t_supplier s on s.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) and s.status = 1
+LEFT JOIN (
+              SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+              SELECT '0','','',1
+                    ) sa on sa.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2]) and sa.status = 1
+INNER JOIN t_supplier_goods_config sgc ON sgc.supplier_id = s.id AND sgc.goods_id = cpc.goods_id AND sgc.status = 1
+where cpc.rating_form_detail_id = ?rating_form_detail_id and cpc.status = 1 and cpc.goods_id = ?goods_id order by cast(s.id as integer) , cast(coalesce(sa.id,'0') as integer) limit 1
+
+[[customer.amount.price.by.storage.order.list]]
+with tmp as(
+  SELECT sum(sod.require_amount/100) order_amount,sum(COALESCE(cpc.price,0) * sod.require_amount/100) total_price,s.customer_id
+  FROM t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+  INNER JOIN t_storage s ON s.id = so.apply_storage_id
+  LEFT JOIN t_cust_price_config cpc on cpc.customer_id = s.customer_id and cpc.goods_id = sod.goods_id and cpc.unit_id = sod.require_unit_id
+  where so.id in ('0'
+      {% for id in storage_order_ids %}
+         ,'{{id}}'
+      {% endfor %}
+  ) and cpc.id NOTNULL GROUP BY s.customer_id
+)
+select t.*,o.receive_contact,c.id customer_id,c.name customer_name from tmp t
+left join t_customer c on c.id = t.customer_id and c.status = 1
+left join  t_order o on t.customer_id = o.customer_id and cast(o.id as integer) in (
+    select max(cast(id as integer)) from t_order
+    group by customer_id
+)
+
+[[order.temp.list.by.account]]
+with t AS (
+select
+so.id storage_order_id,
+sod.id storage_order_detail_id,
+  sod.goods_id,
+  sod.require_amount/100 amount,
+  sod.require_unit_id,
+  sod.specification_id,
+  sod.category_id,
+  s.customer_id,
+  u.name unit_name,
+  (select id from t_supplier where id  = ?supplier_id) as supplier_id,
+  sod.memo order_memo
+ FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.apply_storage_id
+INNER JOIN t_unit u on u.id = sod.require_unit_id
+WHERE so.id in ('0'
+       {% for id in storage_order_ids %}
+               ,'{{id}}'
+       {% endfor %}
+    )
+)
+select * from t
+
+[[confirm.goods.temp.by.rating.form]]
+select s.id supplier_id,
+cpc.price sale_price,
+cpc.price buy_price,
+s.is_joined
+from t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage ts ON ts.id= so.apply_storage_id
+INNER JOIN t_cust_price_config cpc on cpc.customer_id = ts.customer_id and cpc.goods_id = sod.goods_id and cpc.unit_id = sod.require_unit_id and ?supplier_id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) and ?supplier_alias_id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2])
+INNER JOIN t_supplier s ON s.id = ?supplier_id and s.id =ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1])
+        where so.id = ?storage_order_id
+
+[[confirm.customer.amount.price.by.storage.order]]
+with temp as (
+  SELECT so.id storage_order_id,sod.goods_id,so.storage_order_no,s.customer_id,sod.require_unit_id,
+    CASE WHEN sod.require_amount/100.00-sod.require_amount/100 >0  THEN 1 ELSE 0 END if_int
+  FROM t_storage_order so
+  LEFT JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+  LEFT JOIN t_storage s ON s.id = so.apply_storage_id
+  where  so.id in ('0'
+      {% for id in storage_order_ids %}
+        ,'{{id}}'
+      {% endfor %})
+)
+SELECT t.*,
+  CASE WHEN cpc.id is null or sgc.supplier_id is NULL or s.id is NULL THEN 0 ELSE 1 END if_supplier_id
+FROM temp t
+LEFT JOIN t_cust_price_config cpc on cpc.customer_id = t.customer_id and cpc.goods_id = t.goods_id and cpc.unit_id = t.require_unit_id and ?supplier_id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) and ?supplier_alias_id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2])
+LEFT JOIN t_supplier s on s.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) and s.id = ?supplier_id and s.status = 1
+LEFT JOIN t_supplier_goods_config sgc on sgc.supplier_id = s.id and sgc.goods_id = t.goods_id and sgc.status = 1
+

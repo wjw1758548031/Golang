@@ -1,0 +1,240 @@
+[[query.warehouselistvo.cnt]]
+select count(1) cnt from t_warehouse tw
+where tw.status in (1,2) and supplier_id=?supplier_id
+{% if province_id!="" %}
+and tw.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+and tw.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+and tw.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+and tw.name ilike '%'||?keyword||'%'
+{% endif%}
+
+[[query.warehouselistvo.list]]
+with tmp as (
+select id,name,warehouse_cate_desc,province_id,city_id,district_id,contact_name,contact_phone,status,tw.create_time from t_warehouse tw
+where tw.status in (1,2) and supplier_id=?supplier_id
+{% if province_id!="" %}
+and tw.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+and tw.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+and tw.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+and tw.name ilike '%'||?keyword||'%'
+{% endif%}
+order by tw.create_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT
+  tmp.id,
+  tmp.name,
+  warehouse_cate_desc,
+  tp.name                                                        province_name,
+  tc.name                                                        city_name,
+  td.name                                                        district_name,
+  contact_name,
+  contact_phone,
+  tmp.status,
+  tm.meta_desc                                                   status_desc,
+  ta.login_name                                                        account_name,
+  ta.id                                                          account_id,
+  (SELECT count(1)
+   FROM t_order
+   WHERE warehouse_id = tmp.id AND order_status IN (1, 2, 3, 4)) taking_order_cnt
+FROM tmp, t_province tp, t_city tc, t_district td, t_account ta,t_acct_role tar,t_role tr, t_metadata_map tm
+WHERE tmp.province_id = tp.id AND tmp.city_id = tc.id AND tmp.district_id = td.id AND tmp.id = ta.warehouse_id
+      AND ta.id=tar.account_id and tar.role_id=tr.id and tr.role_code='wh_admin'
+      AND tm.meta_code = 'cfg_status' AND tm.meta_val = tmp.status
+      order by tmp.create_time desc
+
+[[get.warehouse.info]]
+select tw.id ,tw.name,province_id,city_id,district_id,contact_name,contact_phone,memo,ta.id account_id,ta.login_name account_name
+from t_warehouse tw,t_account ta,t_role tr,t_acct_role tar
+where tw.status in (1,2) and tw.id=?warehouseId  and ta.warehouse_id=tw.id and ta.id=tar.account_id and tar.role_id=tr.id and tr.role_code='wh_admin'
+
+
+[[query.warehouselistvo.for.order.cnt]]
+select count(1) cnt from t_warehouse tw
+where tw.status in (1,2) and supplier_id=?supplier_id
+{% if keyword!="" %}
+and tw.name ilike '%'||?keyword||'%'
+{% endif%}
+
+[[query.warehouselistvo.for.order.list]]
+with tmp as (
+select id,name,warehouse_cate_desc,province_id,city_id,district_id,status,tw.create_time from t_warehouse tw
+where tw.status in (1,2) and supplier_id=?supplier_id
+{% if keyword!="" %}
+and tw.name ilike '%'||?keyword||'%'
+{% endif%}
+order by tw.create_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select tmp.id,tmp.name,warehouse_cate_desc,tp.name province_name,tc.name city_name,td.name district_name,tmp.status,tm.meta_desc status_desc
+from tmp,t_province tp,t_city tc,t_district td,t_metadata_map tm
+where tmp.province_id=tp.id and tmp.city_id=tc.id and tmp.district_id=td.id
+and tm.meta_code = 'cfg_status' AND tm.meta_val = tmp.status
+order by tmp.create_time desc
+
+[[goods.stocks.cnt]]
+SELECT
+      count(1)
+    FROM t_warehouse_goods_stock wgs, t_goods tg,t_supplier_goods_config sgc
+    WHERE wgs.warehouse_id=?warehouse_id and wgs.goods_id=tg.id
+         and sgc.status=1 and sgc.supplier_id=wgs.supplier_id and sgc.goods_id=tg.id
+         {% if cate_lv1_id!="" %}
+            AND tg.cate_lv1_id = ?cate_lv1_id
+         {% endif %}
+         {% if cate_lv2_id!="" %}
+            AND tg.cate_lv2_id = ?cate_lv2_id
+         {% endif %}
+         {% if prd_id!="" %}
+            AND tg.prd_id = ?prd_id
+         {% endif %}
+         {% if keyword!="" %}
+                AND (tg.name like '%'||?keyword||'%' or CnFirstChar(tg.name) ilike '%'||?keyword||'%')
+         {% endif %}
+          {% if warning_state==1 %}
+                AND wgs.warning_num < wgs.stock_num
+          {% endif %}
+          {% if warning_state==2 %}
+                AND wgs.warning_num >= wgs.stock_num
+          {% endif %}
+
+[[goods.stocks.list]]
+WITH tmp AS (
+    SELECT
+      wgs.id,
+      wgs.warehouse_id,
+      wgs.goods_id,
+      wgs.stock_num,
+      wgs.warning_num,
+      tg.name goods_name,
+      tg.unit,
+      tg.prd_id,
+      tg.cate_lv1_id,
+      tg.cate_lv2_id,
+      wgs.create_time
+    FROM t_warehouse_goods_stock wgs, t_goods tg,t_supplier_goods_config sgc
+    WHERE wgs.warehouse_id=?warehouse_id and wgs.goods_id=tg.id
+         and sgc.status=1 and sgc.supplier_id=wgs.supplier_id and sgc.goods_id=tg.id
+         {% if cate_lv1_id!="" %}
+            AND tg.cate_lv1_id = ?cate_lv1_id
+         {% endif %}
+         {% if cate_lv2_id!="" %}
+            AND tg.cate_lv2_id = ?cate_lv2_id
+         {% endif %}
+         {% if prd_id!="" %}
+            AND tg.prd_id = ?prd_id
+         {% endif %}
+         {% if keyword!="" %}
+             AND (tg.name like '%'||?keyword||'%' or CnFirstChar(tg.name) ilike '%'||?keyword||'%')
+         {% endif %}
+          {% if warning_state==1 %}
+                AND wgs.warning_num < wgs.stock_num
+          {% endif %}
+          {% if warning_state==2 %}
+                AND wgs.warning_num >= wgs.stock_num
+          {% endif %}
+    order by {% if stock_num_sort=="" %}
+                 wgs.create_time desc ,convert_to(tg.name,'UTF-8')
+             {% endif %}
+             {% if stock_num_sort=="desc" %}
+                 wgs.stock_num desc , convert_to(tg.name,'UTF-8')
+             {% endif %}
+             {% if stock_num_sort=="asc" %}
+                 wgs.stock_num asc , convert_to(tg.name,'UTF-8')
+             {% endif %}
+    limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT
+  tmp.id,
+  tmp.goods_name,
+  tmp.unit,
+  tmp.warning_num,
+  tp.name      prd_name,
+  lv2.name     cate_lv2_name,
+  lv1.name     cate_lv1_name,
+  tmp.stock_num
+FROM tmp, t_product tp, t_product_category lv1, t_product_category lv2
+WHERE
+  tmp.prd_id = tp.id AND tmp.cate_lv1_id = lv1.id AND tmp.cate_lv2_id = lv2.id AND tp.status = 1 AND lv1.status = 1 AND
+  lv2.status = 1
+  order by {% if stock_num_sort=="" %}
+                tmp.create_time desc , convert_to(tmp.goods_name,'UTF-8')
+           {% endif %}
+           {% if stock_num_sort=="desc" %}
+                tmp.stock_num desc , convert_to(tmp.goods_name,'UTF-8')
+           {% endif %}
+           {% if stock_num_sort=="asc" %}
+                tmp.stock_num asc , convert_to(tmp.goods_name,'UTF-8')
+           {% endif %}
+
+[[select.districts.by.warehouseId.cnt]]
+SELECT
+count(1) cnt
+ FROM
+     	t_warehouse_district wd
+     	left join t_province p
+     	on wd.province_id = p.id
+     	left join t_city c
+     	on wd.city_id = c.id
+     	left join  t_district d
+     	on wd.district_id = d.id
+   WHERE wd.warehouse_id = ?warehouse_id AND wd.status =1
+   {% if province_id!="" %}
+   and p.id = ?province_id
+   {% endif%}
+   {% if city_id!="" %}
+   and c.id = ?city_id
+   {% endif%}
+   {% if district_id!="" %}
+   and d.id = ?district_id
+   {% endif%}
+
+ [[select.districts.by.warehouseId.list]]
+ SELECT
+ wd.id warehouse_cate_id,
+case when p.name is null then '--'
+          	else p.name end as "province_name",
+          case when c.name is null then '--'
+          	else c.name end as "city_name",
+          case when d.name is null then '--'
+          	else d.name end as "district_name"
+ FROM
+    	t_warehouse_district wd
+    	left join t_province p
+    	on wd.province_id = p.id
+    	left join t_city c
+    	on wd.city_id = c.id
+    	left join  t_district d
+    	on wd.district_id = d.id
+  WHERE wd.warehouse_id = ?warehouse_id AND wd.status =1
+  {% if province_id!="" %}
+  and p.id = ?province_id
+  {% endif%}
+  {% if city_id!="" %}
+  and c.id = ?city_id
+  {% endif%}
+  {% if district_id!="" %}
+  and d.id = ?district_id
+  {% endif%}
+  order by wd.create_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[district.query.provinces.by.warehouse]]
+with tmp as (
+  SELECT count(1) cnt from t_warehouse_district WHERE province_id = '0' AND city_id = '0' AND district_id = '0' AND status = 1 AND  supplier_id = ?supplier_id
+)
+ SELECT p.id , p.name,CASE WHEN (p.id IN (SELECT province_id from t_warehouse_district WHERE  supplier_id = ?supplier_id and status= 1 AND tmp.cnt=0 and province_id !='0' and city_id = '0' and district_id='0')) or tmp.cnt = 1 THEN '2' ELSE '1' END  as disable from  t_province p,tmp WHERE p.status = 1   order by p.disp_idx;
+
+[[district.query.city.by.warehouse.province]]
+SELECT c.id , c.name,CASE WHEN c.id IN (SELECT city_id from t_warehouse_district WHERE  supplier_id = ?supplier_id and status= 1 AND province_id = ?province_id AND city_id != '0' and district_id='0'  ) THEN '2' ELSE '1' END  as disable from  t_city c WHERE c.status = 1 AND c.province_id = ?province_id  order by c.disp_idx;
+
+[[district.query.districts.by.warehouse.city]]
+SELECT d.id , d.name,CASE WHEN d.id IN (SELECT district_id from t_warehouse_district WHERE  supplier_id = ?supplier_id and status= 1 AND city_id = ?city_id and district_id!='0'   ) THEN '2' ELSE '1' END  as disable from  t_district d WHERE d.status = 1 AND d.city_id = ?city_id order by d.disp_idx;

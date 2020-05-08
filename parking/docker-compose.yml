@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  haikangplate:
+    build: ./
+    image: haikangplate:1.0
+    container_name: haikangplate
+    env_file:
+    - ./.env
+    ports:
+      - 10002:10002
+    volumes:
+      - /home/haikangplate/.env:/usr/src/app/.env
+    restart: always

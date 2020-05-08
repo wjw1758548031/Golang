@@ -1,0 +1,30 @@
+[[query.warehouses.good.stock]]
+select COALESCE(sum(stock_num),0) sum
+from t_warehouse_goods_stock
+where warehouse_id in ('0'
+   {% for warehouseId in warehouse_ids %}
+      ,'{{warehouseId}}'
+   {% endfor %}
+) and goods_id = ?goods_id and status = 1
+
+[[query.warehouse.good.stock.list]]
+select *
+from t_warehouse_goods_stock
+where warehouse_id in ('0'
+   {% for warehouseId in warehouse_ids %}
+       ,'{{warehouseId}}'
+   {% endfor %}
+)
+and goods_id = ?goods_id and status = 1
+order by cast(id as integer) asc
+
+[[query.warehouse.good.stock.by,district]]
+select *
+from t_warehouse_goods_stock
+where warehouse_id in ('0'
+   {% for warehouseId in warehouse_ids %}
+       ,'{{warehouseId}}'
+   {% endfor %}
+)
+and goods_id = ?goods_id and status = 1
+order by cast(id as integer) asc

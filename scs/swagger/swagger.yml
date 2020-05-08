@@ -1,0 +1,325 @@
+swagger: "2.0"
+info:
+  title: 物供系统接口文档
+  description: 物供系统所有的接口都会在该文档中进行说明
+basePath: /1
+paths:
+  /ceshis/:
+    post:
+      tags:
+      - ceshis
+      description: wenjianliu 做的时候记得把登录注释了*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ceshimodel'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.ceshimodel'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /ceshis/wenjianliu:
+    post:
+      tags:
+      - ceshis
+      description: wenjianliu 做的时候记得把登录注释了*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/filepath:
+    post:
+      tags:
+      - wenjianliu
+      description: Filepath 获取执行文件在哪个位置执行*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuCreate:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 写文件*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuCreatexce:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 创建exce*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuExcelizeAddIconexce:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 使用excelize插入图表*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuExcelizeCreatexce:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 使用excelize创建exce*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuExcelizeInsertImageexce:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 使用excelize插入图片*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuExcelizeReadFontStyle:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 使用excelize读取exce并修改其中字体的样式*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuExcelizeReadexce:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 使用excelize读取exce*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuUpdateexce:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 修改exce*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuWrite:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 写文件*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuWriteCreateA:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu c创建*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliuexce:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu c查询exce*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliutxtOpen:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 读文件*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /wenjianliu/wenjianliutxtt:
+    post:
+      tags:
+      - wenjianliu
+      description: wenjianliu 读文件*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+definitions:
+  controllers.Zhi:
+    title: Zhi
+    type: object
+    properties:
+      board_id:
+        description: 角色ID
+        type: string
+      id:
+        description: 角色ID
+        type: integer
+        format: int64
+  controllers.ceshimodel:
+    title: ceshimodel
+    type: object

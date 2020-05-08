@@ -1,0 +1,5 @@
+[[product.propertyvo.list]]
+select tpp.id,tpp.name,tppd.name dtl_name,tppd.id dtl_id  from t_product_property tpp
+left join (select id,name,prd_prop_id,disp_idx from t_product_property_dtl where status=1) tppd on tpp.id=tppd.prd_prop_id
+where tpp.prd_id=?prdId and tpp.status=1
+order by tpp.disp_idx,tppd.disp_idx

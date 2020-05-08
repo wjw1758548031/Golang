@@ -1,0 +1,24 @@
+[[query.group.customer.list]]
+with tmp as(
+  select string_agg(cu.name,',') customer_name,grc.group_id group_id
+  from t_group_customer grc
+  LEFT JOIN t_customer cu on  cu.id=grc.customer_id and cu.status=1 and grc.status=1 and cu.leaf = '1'
+  where grc.status = 1
+  GROUP BY grc.group_id
+ )
+select row_number() OVER(ORDER BY cast(gr.id AS INTEGER) DESC ) row_num,gr.id group_id,gr.name group_name,tmp.customer_name customer_names
+from t_group gr
+LEFT JOIN tmp on tmp.group_id=gr.id and gr.status=1
+where gr.status = 1
+{% if supplier_id != "" && supplier_id != "0" %}
+ and gr.create_account_id =?account_id
+{% endif%}
+{% if keyword!="" %}
+ and gr.name ilike '%'||?keyword||'%'
+{% endif%}
+
+[[query.group.list.by.select.list]]
+select id group_id,name group_name from t_group gr where status = 1
+{% if supplier_id != "" && supplier_id != "0" %}
+ and gr.create_account_id =?account_id
+{% endif%}

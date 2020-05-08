@@ -1,0 +1,97 @@
+package main
+
+import (
+	"bytes"
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
+	"io/ioutil"
+	"net/http"
+	_ "net/http/pprof"
+	"reflect"
+	"strings"
+	"time"
+)
+
+var Client http.Client
+
+func init(){
+	config := new(tls.Config)
+	config = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	tr := &http.Transport{
+		TLSClientConfig: config,
+	}
+	Client = http.Client{
+		Transport: tr,
+		Timeout:   15 * time.Second,
+	}
+}
+
+func main(){
+	
+	data := make(map[string]interface{},0)
+	data["id"] = "123456"
+	//xmlStr := MapToXml(data,"CMBSDKPGK")
+	body,_ := json.Marshal(data)
+
+	re, err := Client.Post("http://localhost:5003/test/transfer", "application/json;charset=utf-8", bytes.NewBuffer([]byte(body)))
+	//re, err := Client.Post("http://192.168.88.98:4002/test/transfer", "application/x-www-form-urlencoded", strings.NewReader(xmlStr))
+	if err != nil {
+		fmt.Println("err:",err)
+		return
+	}
+	content, err := ioutil.ReadAll(re.Body)
+	fmt.Println("string:",string(content))
+
+}
+
+//以上是发送端
+
+
+
+
+//以下是服务，接收端
+
+package main
+
+import (
+	"fmt"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/log"
+	"github.com/iris-contrib/middleware/cors"
+	"github.com/kataras/iris"
+	"github.com/kataras/iris/middleware/recover"
+	"github.com/kataras/iris/middleware/logger"
+)
+
+func main() {
+	app := iris.New()
+	app.Logger().SetLevel("debug")
+	app.Use(recover.New())
+	app.Use(logger.New())
+	crs := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // allows everything, use that to change the hosts.
+		AllowedMethods:   []string{"PUT", "PATCH", "GET", "POST", "OPTIONS", "DELETE"},
+		AllowedHeaders:   []string{"*"},
+		ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
+		AllowCredentials: true,
+	})
+	app.Party("/", crs).AllowMethods(iris.MethodOptions)
+	r := app.Party("/test")
+	r.Post("/transfer",Test)
+	app.Run(iris.Addr(":5003"), iris.WithoutPathCorrection)
+}
+
+func Test(ctx iris.Context){
+	post := make(map[string]string)
+	err := ctx.ReadJSON(&post);if err != nil{
+		log.Info(err)
+	}
+	fmt.Println("post[id]:",post["id"])
+}
+
+
+

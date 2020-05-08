@@ -1,0 +1,641 @@
+package gredis
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/gomodule/redigo/redis"
+
+	"github.com/EDDYCJY/go-gin-example/pkg/setting"
+)
+
+var RedisConn *redis.Pool
+
+// Setup Initialize the Redis instance
+func Setup() error {
+	RedisConn = &redis.Pool{
+		MaxIdle:     setting.RedisSetting.MaxIdle,
+		MaxActive:   setting.RedisSetting.MaxActive,
+		IdleTimeout: setting.RedisSetting.IdleTimeout,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", setting.RedisSetting.Host)
+			if err != nil {
+				return nil, err
+			}
+			if setting.RedisSetting.Password != "" {
+				if _, err := c.Do("AUTH", setting.RedisSetting.Password); err != nil {
+					c.Close()
+					return nil, err
+				}
+			}
+			return c, err
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
+	_,err := RedisConn.Dial();if err != nil {
+		panic(err)
+	}
+	return nil
+}
+
+//建议不用keys 因为keys是全局搜索，性能很慢
+
+
+//设置过期时间，参数为时间戳，也就是具体哪个时间过期的时间戳
+func Expireat(key string,endTime int64) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:= conn.Do("Expireat", key,endTime)
+	return err
+}
+
+//返回key的剩余时间（单位为秒）
+func Ttl(key string) (int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	//多少秒后会过期
+	return  redis.Int64(conn.Do("TTL", key))
+}
+
+
+
+
+
+
+// Set a key/value
+func Set(key string, data interface{}, time int) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+
+	value, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.Do("SET", key, value)
+	if err != nil {
+		return err
+	}
+	//多少秒后会过期
+	_, err = conn.Do("EXPIRE", key, time)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
+// Setnx a key/value	//如果key不存在才会赋值，否则不会赋值
+func Setnx(key string, data interface{}, time int) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+
+	value, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.Do("SETNX", key, value)
+	if err != nil {
+		return err
+	}
+	//多少秒后会过期 注意使用场景
+	_, err = conn.Do("EXPIRE", key, time)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//取出来的string进行截取，start截取开始0是第一位，end是截取尾巴
+func GetRange(key string, start, end int64) ([]byte, error) {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	reply, err := redis.Bytes(conn.Do("GETRANGE", key, start, end))
+	return reply, err
+}
+
+//给key从偏移值多少位开始进行赋值例如：
+//SET key1 "Hello World"
+//SETRANGE key1 6 "Redis"
+// GET key1 //得 "Hello Redis"
+func SetRange(key string, offset int64, value string) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_, err := conn.Do("SETRANGE", key, offset, value)
+	return err
+}
+
+
+//给key设置了偏移值
+func Setbit (key string, offset int64, value int) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_, err := conn.Do("SETBIT", key, offset, value)
+	return err
+}
+
+//offset必须要相同才能取出value,否则好像就会为0
+func Getbit (key string, offset int64)  ([]byte, error)  {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("GETBIT", key, offset))
+}
+
+//给key减一
+func Decr (key string)  error  {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("DECR", key)
+	return err
+}
+
+
+
+//	key 所储存的值减去给定的减量值（decrement） 。
+func DecrBy (key string, decrement int64)  error  {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("DECRBY", key,decrement)
+	return err
+}
+
+
+//设置多个key key,value,key,value(传参) 如果有一个键存在或者失败都会设置失败，因为这个是一致性
+func MSetNX (pairs ...interface{}) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_, err := conn.Do("MSETNX",pairs...)
+	return err
+}
+
+//	key 所储存的值加上给定的增量值（decrement） 。
+func Lncrby(key string, decrement int64) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LNCRBY", key,decrement)
+	return err
+}
+
+//	key 所储存的值加1 。
+func Lncr(key string) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LNCR", key)
+	return err
+}
+
+//数组	将一个或多个值插入到列表头部，这个是list，可以一次性插入也可以同时多个插入
+//每个值都有对应的索引
+func LPUSH(key string, values interface{}) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LPUSH", key , values)
+	return err
+}
+
+
+//数组 通过索引获取列表中的元素
+//以 -1 表示列表的最后一个元素， -2 表示列表的倒数第二
+//第一个位置是 1
+func LIndex(key string, index int64) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("LINDEX", key , index))
+}
+
+
+//数组 通过索引获取列表中的元素
+//第一个位置是 1
+//通过开始和结束来获取数组，如果是0和-1
+func LRange(key string, start, stop int64) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("LRANGE", key , start , stop))
+}
+
+
+
+
+//数组 参数格式为 key,value,value
+//在列表中添加一个或多个值 默认没值也没事
+func RPush(values ...interface{}) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("RPUSH", values...)
+	return err
+}
+
+//数组：移除列表的最后一个元素，并将该元素添加到另一个列表并返回
+func RPopLPush(source, destination string) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("RPOPLPUSH", source,destination)
+	return err
+}
+
+//数组：移出并获取列表的第一个元素， 如果列表没有元素会阻塞列表直到等待超时或发现可弹出元素为止。 移除的是key里面的数组
+//在以上实例中，操作会被阻塞，如果指定的列表 key list1 存在数据则会返回第一个元素，否则在等待100秒后会返回 nil 。这个时间好像可以自己设置
+func BLPop(timeout time.Duration, keys ...interface{}) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("BLPOP", keys...)
+	return err
+}
+
+//数组：移出并获取列表的最后一个元素， 如果列表没有元素会阻塞列表直到等待超时或发现可弹出元素为止。 移除的是key里面的数组
+//在以上实例中，操作会被阻塞，如果指定的列表 key list1 存在数据则会返回第一个元素，否则在等待100秒后会返回 nil 。这个时间好像可以自己设置
+func BrPop(timeout time.Duration, keys ...interface{}) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("BRPOP", keys...)
+	return err
+}
+
+//数组：移除列表元素 填入的value 是值 有多个就删除多个，不过count可以控制数量
+//被移除元素的数量。 列表不存在时返回 0 。
+func  LRem(key string, count int64, value interface{}) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LREM", key , value)
+	return err
+}
+
+//数组：对一个列表进行修剪(trim)，就是说，让列表只保留指定区间内的元素，不在指定区间之内的元素都将被删除
+//开始位置都是1，填1的话第一个也会被截取掉，-1为最后的位置，后面都能选中的意思
+func  LTrim(key string, start, stop int64) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("LTRIM", key , start ,stop ))
+}
+
+//数组：将一个或多个值插入到已存在的列表头部 如果已经有值，则不会插入
+//values 参数 key,value,value格式
+func LPushX(values ...interface{}) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LPUSHX" , values...)
+	return err
+}
+
+//数组：为已存在的列表添加值
+//如果不存在，则返回0，不进行添加 value格式 key,value,value
+func RPushX(values ...interface{}) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LPUSHX" , values...)
+	return err
+}
+
+
+//数组：在列表的元素前或者后插入元素
+//如果命令执行成功，返回插入操作完成之后，列表的长度。 如果没有找到指定元素 ，返回 -1 。 如果 key 不存在或为空列表，返回 0 。
+//op为BEFORE 在元素前， pivot 为值  value 在pivot这个位置插入value  默认是后面插入
+func Linsert(key, op string, pivot, value interface{}) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LINSERT" , key ,op , pivot, value  )
+	return err
+}
+
+//通过一个主key和一个副key 查询出value 这个会有对应的索引，hget好像没有
+func Hmget(key, field string) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("HMGET", key , field  ))
+}
+
+
+//通过一个主key和一个副key 设置一个value 具操作
+func Hmset(key, field string, value interface{}) (int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("HMSET", key , field ,value ))
+}
+
+//通过一个主key和一个副key 设置一个value
+func Hset(key, field string, value interface{}) (int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("HSET", key , field ,value ))
+}
+
+//通过一个主key和一个副key 查询出value
+func Hget(key, field string) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("HGET", key , field  ))
+}
+
+//获取key所有的值，不需要副key,他会把所有副key的值取出来，但是副key不会取出来
+func Hgetall(key string) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("HGETALL", key ))
+}
+
+//查看主key并且加上副key 是否都存在
+//如果哈希表含有给定字段，返回 1 。 如果哈希表不含有给定字段，或 key 不存在，返回 0 。
+func HEXISTS(key, field string) (int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("HGETALL", key ,field ))
+}
+
+//为哈希表 key 中的指定字段的整数值加上增量 increment 。
+//key field 的value加值 返回的也加完后的值
+func  HIncrBy(key, field string, incr int64)  (int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("HINCRBY", key ,field ,incr))
+}
+
+//values格式 key, key1 , key2  key是主的 其他的都是副的 副的可以为批量
+//删除之后数量就为0了
+func  HDel(values ...interface{})  (int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("HDel",values...))
+}
+
+
+//包含哈希表中所有字段的列表。 当 key 不存在时，返回一个空列表。
+//通过主key获取所有副的key
+func  Hkeys(key string)  ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("HKEYS",key))
+}
+
+
+//	为哈希表 key 中的指定字段的浮点数值加上增量 increment
+//  不需要担心之前是整数
+func HIncrByFloat(key, field string, incr float64)(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("HINCRBYFLOAT",key,field,incr))
+}
+
+//通过主key和副key设置value
+//如果主key和副key都已经存在过值了，则添加失败，不会进行覆盖
+func HSetNX(key, field string, value interface{})(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("HSETNX",key,field,value))
+}
+
+//数组：多个key，多个key和在一起，把多个key的值全部取出来
+//值如果相同,则只会出来一个
+func SUnion(keys ...interface{})([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("SUNION",keys...))
+}
+
+
+
+//	key 所储存的值加上给定的浮点型的增量值（decrement）,之前得值可以为整数
+func LncrbyFloat(key string, decrement float64) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("LNCRBYFLOAT", key,decrement)
+	return err
+}
+
+//如果 key 已经存在并且是一个字符串， APPEND 命令将 value 追加到 key 原来的值的末尾。 字符串操作
+//如果没有key，可以理解为set
+func Append(key, value string) error{
+	conn := RedisConn.Get()
+	defer conn.Close()
+	_,err:=conn.Do("APPEND", key,value)
+	return err
+}
+
+//将给定 key 的值设为 value ，并返回 key 的旧值(old value)。
+func GetSet(key string, value interface{}) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("GETSET", key, value))
+}
+
+//获取多个key的值，参数格式给多个key就行
+func MGet(keys ...string)  ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	args := make([]interface{}, len(keys))
+	for i, key := range keys {
+		args[1+i] = key
+	}
+	return redis.Bytes(conn.Do("MGET",args...))
+}
+
+//数组：查看数组的个数/获取集合的成员数
+func  SCard(key interface{}) (int64,error) {
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("SCARD",key))
+}
+
+//数组
+//查询数组里的所有成员，也就是值
+func  SMembers(key string)([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("SMEMVERS",key))
+}
+
+//数组
+//多个key里有相同的值，则返回
+func SInter(keys ...interface{}) ([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("SINTER",keys...))
+}
+
+//移除数组元素
+//移除失败返回0 格式为:key,value,value
+func SRem(values ...interface{})(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("SREM",values...))
+}
+
+//数组：a值移动到b
+//把source数组里的member移动到destination里 移动成功返回1，否则为0
+func SMove(source, destination string, member interface{})(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("SMOVE",source,destination,member))
+}
+
+//数组 添加元素
+//格式 key,value,value
+func SAdd(members ...interface{})(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("SADD",members...))
+}
+
+//数组 判断元素是否在数组里
+//在的话返回为1 否则为0
+func SIsMember(key string, member interface{})(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("SISMEMBER",key,member))
+}
+
+//有序数组：移除有序集合中给定的排名区间的所有成员
+//start开始 stop结束 移除key的数组元素
+func ZRemRangeByRank(key string, start, stop int64)(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("ZREMRANGEBYRANK",key,start,stop))
+}
+
+//有序数组:获取有序集合的成员数
+func Zcard(key string)(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("ZCARD",key))
+}
+
+//有序数组：移除数组里的元素
+//格式 key,value,value
+func ZRem(members ...interface{})(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("ZRem",members))
+}
+
+//有序数组：给有序数组元素加值
+func ZIncrBy(key string, increment float64, member string)(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("ZRem",key,increment,member))
+}
+
+//有序数组查询，默认从小到大，并附加值得大小  WITHSCORES为副key和值都显示否则不显示值
+func Zrangebyscore(key string, start, stop string)([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("ZRANGEBYSCORE",key,start,stop,"WITHSCORES"))
+}
+
+
+//有序数组查询，默认从小到大，这里的是从多少位到多少位并不是比大小  WITHSCORES为副key和值都显示否则不显示值
+//ZREVRANGE这个就是从高到低
+func ZRANGE(key string, start, stop float64)([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("ZRANGE",key,start,stop,"WITHSCORES"))
+}
+
+
+//有序数组 有序集合里添加
+//参数格式 key1,key2,value2,key3,value3
+func ZAdd(values ...interface{}) (int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("ZADD",values...))
+}
+
+
+
+//有序数组查询，默认从大到小，并附加值得大小  WITHSCORES为副key和值都显示否则不显示值
+func ZRevRangeByScore(key string, start, stop string)([]byte,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Bytes(conn.Do("ZREVRANGEBYSCORE",key,start,stop,"WITHSCORES"))
+}
+
+
+
+
+//有序数组 返回具体key 副key的分数
+func ZScore(key, member string)(string,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.String(conn.Do("ZScore",key,member))
+}
+
+//有序数组 移除一个范围内的值
+func ZRemRangeByScore(key, min, max string)(int64,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	return redis.Int64(conn.Do("ZREMRANGEBYSCORE",key,min,max))
+}
+
+
+
+
+
+
+//删除key
+func Del(key string) (bool,error){
+	conn := RedisConn.Get()
+	defer conn.Close()
+	exists, err := redis.Bool(conn.Do("EXISTS", key))
+	return exists,err
+}
+
+
+
+
+// Exists check a key
+func Exists(key string) bool {
+	conn := RedisConn.Get()
+	defer conn.Close()
+
+	exists, err := redis.Bool(conn.Do("EXISTS", key))
+	if err != nil {
+		return false
+	}
+
+	return exists
+}
+
+// Get get a key
+func Get(key string) ([]byte, error) {
+	conn := RedisConn.Get()
+	defer conn.Close()
+
+	reply, err := redis.Bytes(conn.Do("GET", key))
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
+}
+
+// Delete delete a kye
+func Delete(key string) (bool, error) {
+	conn := RedisConn.Get()
+	defer conn.Close()
+
+	return redis.Bool(conn.Do("DEL", key))
+}
+
+// LikeDeletes batch delete 尽量不要用keys
+func LikeDeletes(key string) error {
+	conn := RedisConn.Get()
+	defer conn.Close()
+
+	keys, err := redis.Strings(conn.Do("KEYS", "*"+key+"*"))
+	if err != nil {
+		return err
+	}
+
+	for _, key := range keys {
+		_, err = Delete(key)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

@@ -1,0 +1,157 @@
+[[customer.name.by.waybill.no.cnt]]
+with tmp as(
+SELECT DISTINCT
+    c.id customer_id,
+    c.name customer_name,
+    o.receive_address,
+    sd.waybill_no,
+    substr(sd.waybill_no,char_length(sd.waybill_no)-9,10) as sub
+from
+      t_order o,
+      t_shipping_document sd,
+      t_customer c
+WHERE sd.order_id=o.id
+    and o.customer_id=c.id
+and o.warehouse_id=?warehouse_id
+{% if keyword!="" %}
+    AND (o.order_no like '%{{keyword}}%' or c.name like '%{{keyword}}%')
+{% endif %}
+{% if !start_order_time.IsZero() %}
+    and sd.create_time>=to_date(?start_order_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_order_time.IsZero() %}
+    and sd.create_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if type == 1 %}
+    and o.order_status = 9
+{% endif%}
+{% if type == 2 %}
+    and o.order_status = 13
+{% endif%}
+ORDER BY sub DESC
+)
+select count(1) cnt from tmp
+
+[[customer.name.by.waybill.no.list]]
+SELECT DISTINCT
+    c.id customer_id,
+    c.name customer_name,
+    o.receive_address,
+    sd.waybill_no,
+    substr(sd.waybill_no,char_length(sd.waybill_no)-9,10) as sub
+from
+      t_order o,
+      t_shipping_document sd,
+      t_customer c
+WHERE sd.order_id=o.id
+    and o.customer_id=c.id
+and o.warehouse_id=?warehouse_id
+{% if keyword!="" %}
+    AND (o.order_no like '%{{keyword}}%' or c.name like '%{{keyword}}%')
+{% endif %}
+{% if !start_order_time.IsZero() %}
+    and sd.create_time>=to_date(?start_order_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_order_time.IsZero() %}
+    and sd.create_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if type == 1 %}
+    and o.order_status = 9
+{% endif%}
+{% if type == 2 %}
+    and o.order_status = 13
+{% endif%}
+ORDER BY sub DESC
+{% if !reportTemp %}
+   limit ?page_size offset (?page_num - 1) * ?page_size
+{% endif%}
+
+[[order.by.waybill.list]]
+with tmp as (
+SELECT  o.id order_id,
+        o.order_no,
+        o.order_sub_no,
+        o.goods_name,
+        o.unit,
+        o.order_time,
+        o.ship_time,
+        o.order_amount,
+        o.settle_amount,
+        o.dispatch_amount,
+        o.order_memo,
+       CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                 CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+              ELSE
+                CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+             END time_ordering,
+        o.receive_time,
+        o.receive_contact,
+        o.receive_amount,
+        o.dispatch_amount,
+        o.order_status,
+        o.w_receive_amount,
+        o.s_receive_amount,
+        o.customer_id,
+        o.ship_type,
+        o.order_memo ,
+        sd.id id
+ from  t_order o,t_shipping_document sd,t_customer c WHERE sd.waybill_no=?waybill_no and sd.order_id=o.id  and c.id = o.customer_id
+ {% if keyword!="" %}
+     AND (o.order_no like '%{{keyword}}%' or c.name like '%{{keyword}}%')
+ {% endif %}
+{% if type == 1 %}
+    and o.order_status = 9
+{% endif%}
+{% if type == 2 %}
+    and o.order_status = 13
+{% endif%}
+)
+SELECT
+    tmp.*,
+    CASE WHEN (tmp.order_status = 13 or tmp.order_status = 2) and tmp.ship_type = 1 THEN 1
+         WHEN  tmp.ship_type = 1 THEN 7
+         ELSE 2 END operate_status,
+    tm.meta_desc order_status_desc,
+    CASE WHEN (tmp.order_status = 2 or tmp.order_status = 13) and tmp.ship_type = 2 THEN 1 ELSE 2 END  as disable,
+    '2'             three_click
+ from tmp,t_metadata_map tm where
+ tm.meta_code = 'order_status' AND tm.meta_val = tmp.order_status order by tmp.order_id
+
+[[receipt.by.sd.id.list.cnt]]
+SELECT count(1)
+ from   t_sd_si ss, t_shipping_img si WHERE ss.sd_id=?sd_id and ss.si_id=si.id and si.channel='1'
+
+[[receipt.by.sd.id.list]]
+SELECT  si.id,
+        si.channel,
+        si.img_receipt_voucher
+ from  t_sd_si ss, t_shipping_img si WHERE ss.sd_id=?sd_id and ss.si_id=si.id  and si.channel='1'
+
+ [[shipping.documents.amount.list]]
+WITH tmp as(
+  SELECT receive_time,receive_amount,'2' channel,id order_id FROM t_order WHERE id =?order_id
+UNION ALL SELECT order_w_sign_time,w_receive_amount, '1' channel,id order_id FROM t_order WHERE id =?order_id
+UNION ALL SELECT verify_time,s_receive_amount,'0' channel,id order_id FROM t_order WHERE id =?order_id
+)
+SELECT DISTINCT t.*,si.img_receipt_voucher,si.create_time create_time,si.id si_id FROM tmp t
+LEFT JOIN t_shipping_document sd ON sd.order_id = t.order_id
+LEFT JOIN t_sd_si ss ON ss.sd_id=sd.id
+LEFT JOIN t_shipping_img si ON ss.si_id = si.id AND si.channel=t.channel
+WHERE receive_time NOTNULL AND receive_time !='0001-01-01'
+ORDER BY receive_time DESC
+
+ [[customer.by.order.list]]
+ SELECT DISTINCT customer_id from t_order where
+  id in ('0'
+ {% for orderId in order_ids %}
+     ,'{{orderId}}'
+    {% endfor %}
+)
+
+[[order.by.customer.list]]
+ SELECT  id order_id from t_order where customer_id=?customer_id and
+  id in ('0'
+ {% for orderId in order_ids %}
+     ,'{{orderId}}'
+    {% endfor %}
+)

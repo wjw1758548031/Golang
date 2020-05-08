@@ -1,0 +1,56 @@
+swagger: "2.0"
+info:
+  title: 物供系统接口文档
+  description: 物供系统所有的接口都会在该文档中进行说明
+basePath: /1
+paths:
+  /ceshis/wenjianliu:
+    post:
+      tags:
+      - ceshis
+      description: wenjianliu 做的时候记得把登录注释了*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+  /image/testImageA:
+    post:
+      tags:
+      - image
+      description: wenjianliu 做的时候记得把登录注释了*******************************
+      parameters:
+      - in: body
+        name: body
+        description: 请求参数说明
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.Zhi'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/controllers.Zhi'
+        "201":
+          description: '{"err_code":"错误编码值","err_msg":"错误描述值"}'
+definitions:
+  controllers.Zhi:
+    title: Zhi
+    type: object
+    properties:
+      board_id:
+        description: 角色ID
+        type: string
+      id:
+        description: 角色ID
+        type: integer
+        format: int64

@@ -1,0 +1,50 @@
+// swagger:route GET /captcha 公共 CaptchaParam
+	// 图片验证码
+	//
+	// 图片验证码
+	//
+	// responses:
+	//  200: SignResponse
+	//	400: SignError
+	defer func() {
+		if err := recover(); err != nil {
+			panic(err)
+			ctx.StatusCode(400)
+			ctx.JSON(iris.Map{
+				"error": err,
+			})
+		}
+	}()
+	//Get请求获取账号存验证码信息
+	account := ctx.URLParam("account")
+	
+	var cap *captcha.Captcha
+	//new一个验证码
+	cap = captcha.New()
+	//获取程序执行位置
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		logger.Debug(err)
+	}
+	logger.Debug(strings.Replace(dir, "\\", "/", -1))
+	// 注意字体位置 可以设置多个字体 或使用cap.AddFont("xx.ttf")追加
+	if err := cap.SetFont("fonts/RBT.ttf"); err != nil {
+		panic(err.Error())
+	}
+
+	// 设置验证码大小
+	//cap.SetSize(100, 50)
+	// 设置干扰强度
+	cap.SetDisturbance(captcha.MEDIUM)
+	//设置颜色
+	cap.SetFrontColor(color.RGBA{25, 25, 200, 255})
+	//cap.SetBkgColor(color.RGBA{255, 0, 0, 255}, color.RGBA{0, 0, 255, 255}, color.RGBA{0, 153, 0, 255})
+	//设置四位数字所有类型的严重码
+	img, str := cap.Create(4, captcha.ALL)
+	logger.Debug(strings.ToLower(str))
+	//将账号和验证码存储到redis里
+	caches.SetCode("captcha", account, strings.ToLower(str))
+	//需要设计一下头部为image/png
+	ctx.Header("Content-Type", "image/png")
+	//将img以png的方式写出
+	png.Encode(ctx.ResponseWriter(), img)

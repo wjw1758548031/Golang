@@ -1,0 +1,844 @@
+[[query.ceshi.cnt]]
+select count(1) sale_to_customer_price from t_shopping_cart
+
+[[query.unit.default.list]]
+select  un.id, un.name,unty.name unit_type_name ,unit_type_id from t_unit un
+left join t_unit_type unty on unty.status=1 and unty.id=un.unit_type_id
+where un.rate=1 and un.status=1
+ORDER BY cast (un.id as INTEGER ) DESC
+
+[[query.unit.default.cnt]]
+select  count(1) cnt from t_unit
+where rate=1 and status=1
+
+[[query.unit.list]]
+select un.id,un.name,un.rate,un.is_default,
+case when un.is_default=1  then 'yes'
+  else 'no'
+  end is_default_desc,
+  un.unit_type_id,un.status,
+  case when un.status=1  then 'no'
+  else 'yes'
+  end status_desc
+  ,un.create_time,un.update_time,
+  untype.name unit_type_name
+from t_unit un
+LEFT JOIN t_unit_type untype on untype.id=un.unit_type_id
+where   untype.status=1
+{% if keyword!="" %}
+and (un.unit_type_id =?keyword)
+{% endif %}
+ORDER BY  cast(un.unit_type_id as integer) desc ,is_default
+
+
+[[query.unit.type]]
+select id,name,status,
+case when status=1  then 'no'
+else 'yes'
+end status_desc
+,order_num,create_time,update_time cnt
+from t_unit_type
+where 1=1
+{% if unit_type!="" %}
+and status=1
+{% endif %}
+{% if keyword!="" %}
+and (name ilike '%'||?keyword||'%' or CnFirstChar(name) ilike '%'||?keyword||'%')
+{% endif %}
+ORDER BY cast(id as integer) desc
+{% if unit_type =="" %}
+limit ?page_size offset (?page_num - 1) * ?page_size
+{% endif %}
+
+
+[[query.unit.cnt]]
+select count(1) cnt
+from t_unit_type
+where 1=1
+{% if unit_type!="" %}
+and status=1
+{% endif %}
+{% if keyword!="" %}
+and (name ilike '%'||?keyword||'%' or CnFirstChar(name) ilike '%'||?keyword||'%')
+{% endif %}
+
+
+
+
+[[query.goodsvo.cnt]]
+select count(1) from t_goods tg where status=1
+{% if cateLv1Id!="" %}
+and tg.cate_lv1_id=?cateLv1Id
+{% endif%}
+{% if cateLv2Id!="" %}
+and tg.cate_lv2_id=?cateLv2Id
+{% endif%}
+{% if prdId!="" %}
+and tg.prd_id=?prdId
+{% endif%}
+{% if name!="" %}
+ and (tg.name ilike '%'||?name||'%' or CnFirstChar(tg.name) ilike '%'||?name||'%')
+{% endif%}
+
+
+[[query.goodsvo.list]]
+with tmp as (
+ select tg.id,tg.name,tg.cate_lv1_id,tg.cate_lv2_id,tg.prd_id,tg.create_time from t_goods tg where status=1
+ {% if cateLv1Id!="" %}
+ and tg.cate_lv1_id=?cateLv1Id
+ {% endif%}
+ {% if cateLv2Id!="" %}
+ and tg.cate_lv2_id=?cateLv2Id
+ {% endif%}
+ {% if prdId!="" %}
+ and tg.prd_id=?prdId
+ {% endif%}
+ {% if name!="" %}
+ and (tg.name ilike '%'||?name||'%' or CnFirstChar(tg.name) ilike '%'||?name||'%')
+ {% endif%}
+ order by tg.create_time desc ,cast(tg.id as INTEGER) desc
+ limit ?pageSize OFFSET ?pageNum
+)
+select tmp.*,tp.name product_name,lv1.name cate_lv1_name,lv2.name cate_lv2_name,
+COALESCE(t.cnt,0) as put_cnt
+from tmp
+   LEFT JOIN (select cpc.goods_id,count(1) cnt from t_cust_price_config cpc
+ where cpc.status=1 GROUP BY cpc.goods_id ) t ON t.goods_id = tmp.id
+LEFT JOIN t_product tp on tmp.prd_id=tp.id
+LEFT JOIN t_product_category lv1 on tmp.cate_lv1_id =lv1.id
+LEFT JOIN t_product_category lv2 on tmp.cate_lv2_id=lv2.id
+order by tmp.create_time desc,cast(tmp.id as INTEGER) desc
+
+[[website.goods.detail]]
+with temp as (
+SELECT
+  g.id,
+  g.name,
+  un.id unit_id,
+  un.name unit_name,
+  g.cate_lv1_id,
+  pc1.name cate_lv1_name,
+  g.cate_lv2_id,
+  pc2.name cate_lv2_name,
+  g.prd_id,
+  p.name prd_name,
+  g.goods_code,
+  g.main_pic_url,
+  rfd.sale_to_customer_price,
+    rfd.id rating_form_detail_id,
+  g.base_description,
+  g.dtl_description,
+  g.exam_rpt_pic_url,
+  (select coalesce(sa.id,'0') from t_cust_price_config cpc
+  left join (
+                SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+                SELECT '0','','',1
+                      ) sa ON sa.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2])
+  where  cpc.rating_form_detail_id = rfd.id and ?supplier_id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1])
+  limit 1) supplier_alias_id
+FROM  t_goods g
+LEFT JOIN t_product_category pc1 ON pc1.id=g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id=g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+INNER JOIN t_rating_form_detail rfd ON rfd.id = ?rating_form_detail_id AND rfd.status = 1 AND rfd.goods_id = g.id
+left join t_unit un on un.id=rfd.unit_id and un.status=1
+)
+select t.*,sgs.stock_num,s.id supplier_id,cgr.limit_amount,cgr.balance_amount,s.supplier_type,
+CASE WHEN cgr.balance_amount ISNULL THEN sgs.stock_num ELSE CASE WHEN cgr.balance_amount> sgs.stock_num THEN sgs.stock_num ELSE cgr.balance_amount END END as stock_number
+from temp t
+left join (SELECT sgs.goods_id,sum(sgs.stock_num) stock_num FROM t_warehouse_goods_stock sgs WHERE  ?supplier_id = sgs.supplier_id and sgs.warehouse_id in ('0'
+                                                                                                     {% for warehouseId in warehouse_ids %}
+                                                                                                      ,'{{warehouseId}}'
+                                                                                                      {% endfor %}
+                                                                                                      ) GROUP BY sgs.goods_id) sgs
+on t.id = sgs.goods_id
+left join t_cust_goods_restriction cgr on  cgr.customer_id = ?service_customer_id and cgr.goods_id = t.id and cgr.status = 1
+left join t_supplier s on ?supplier_id = s.id
+
+
+
+[[website.goods.rating.list]]
+with tmp as(
+   SELECT  ta.id,ta.name,ta.unit,ta.goods_code,ta.cate_lv1_id,ta.cate_lv2_id,ta.prd_id,ta.main_pic_url,ta.spec_scaling,
+cpc.rating_form_id rating_form_id,
+cpc.rating_form_detail_id,
+cpc.price sale_to_customer_price,
+tcg.name category_name,
+tsf.name specification_name,
+cpc.unit_id,
+u1.name unit_name,
+u2.name main_unit_name,
+coalesce(sa.id,'0') supplier_alias_id,
+cpc.goods_id,s.id supplier_id,row_number () OVER (PARTITION BY cpc.goods_id,cpc.unit_id ORDER BY cpc.goods_id,cpc.unit_id,cast( s.id as INTEGER)) as min_index
+FROM t_cust_price_config cpc
+INNER JOIN t_supplier s on s.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) and s.status = 1
+INNER JOIN t_supplier_goods_config sgc ON sgc.goods_id = cpc.goods_id AND sgc.status = 1 AND sgc.supplier_id = s.id
+INNER JOIN t_goods ta ON ta.id=cpc.goods_id AND ta.status = 1
+LEFT JOIN t_category tcg on tcg.id = ta.category_id
+LEFT JOIN t_specification tsf on tsf.id = ta.specification_id
+LEFT JOIN t_unit u1 on u1.id = cpc.unit_id
+LEFT JOIN t_unit u2 on u2.id = ta.unit_id
+LEFT JOIN (
+              SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+              SELECT '0','','',1
+                    ) sa ON sa.id=ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2]) AND sa.status = 1
+WHERE cpc.customer_id=?customer_id AND cpc.status = 1
+ {% if condition != ""%}
+    and  (ta.name like '%{{condition}}%' or ta.goods_code like  '%{{condition}}%')
+ {% endif %}
+  {% if cate_lv1_id != ""%}
+     and  ta.cate_lv1_id=?cate_lv1_id
+  {% endif%}
+    {% if cate_lv2_id != ""%}
+       and  ta.cate_lv2_id=?cate_lv2_id
+    {% endif%}
+  {% if prd_id != ""%}
+     and  ta.prd_id=?prd_id
+     {% if prop_idslength > 0 %}
+                 and       (
+                1=2
+                {% for propId in prop_ids %}
+              or  ('{{propId}}'  in (select prd_prop_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id )
+                      {% if property_idslength > 0 %}
+                               and       (
+                                         1=2
+                                       {% for propIdto in property_ids %}
+                                         or  '{{propIdto}}'  in (select prd_prop_dtl_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id and prd_prop_id ='{{propId}}')
+                                       {% endfor %}
+                                       )
+                        {% endif%}
+                                          )
+               {% endfor %}
+            )
+               {% endif%}
+  {% endif%}
+   {% if prop_idslength > 0 %}
+            and       (
+           1=2
+           {% for propId in prop_ids %}
+         or  ('{{propId}}'  in (select prd_prop_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id )
+                 {% if property_idslength > 0 %}
+                          and       (
+                                    1=2
+                                  {% for propIdto in property_ids %}
+                                    or  '{{propIdto}}'  in (select prd_prop_dtl_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id and prd_prop_id ='{{propId}}')
+                                  {% endfor %}
+                                  )
+                   {% endif%}
+                                     )
+          {% endfor %}
+       )
+          {% endif%}
+  {% if goods_code != ""%}
+      and  (ta.goods_code like  '%{{goods_code}}%')
+   {% endif %}
+)
+ SELECT t.*,s.supplier_type FROM tmp t
+ INNER JOIN t_supplier s ON s.status = 1 AND s.id=t.supplier_id
+ WHERE t.min_index =1
+                         {% if sortIndex == "1"%}
+                           order by t.name collate "zh_CN.utf8" asc
+                        {% endif%}
+                        {% if sortIndex == "2"%}
+                           order by t.name collate "zh_CN.utf8" desc
+                        {% endif%}
+                        {% if sortIndex == "3"%}
+                           order by t.sale_to_customer_price asc
+                        {% endif%}
+                        {% if sortIndex == "4"%}
+                           order by t.sale_to_customer_price  desc
+                        {% endif%}  limit ?page_size offset (?page_num - 1) * ?page_size ;
+
+[[website.goods.rating.cnt]]
+with tmp as(
+   SELECT cpc.goods_id,s.id supplier_id,coalesce(sa.id,'0') supplier_alias_id,row_number () OVER (PARTITION BY cpc.goods_id,cpc.unit_id ORDER BY cpc.goods_id,cpc.unit_id,cast( s.id as INTEGER)) as min_index
+    FROM t_cust_price_config cpc
+INNER JOIN t_supplier s on s.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1])
+INNER JOIN t_supplier_goods_config sgc ON sgc.goods_id = cpc.goods_id AND sgc.status = 1 AND sgc.supplier_id = s.id
+INNER JOIN t_goods ta ON ta.id=cpc.goods_id AND ta.status = 1
+LEFT JOIN (
+              SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+              SELECT '0','','',1
+                    ) sa ON sa.id=ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2]) AND sa.status = 1
+WHERE cpc.customer_id=?customer_id AND cpc.status = 1
+{% if condition != ""%}
+    and  (ta.name like '%{{condition}}%' or ta.goods_code like  '%{{condition}}%')
+ {% endif %}
+ {% if cate_lv1_id != ""%}
+      and  ta.cate_lv1_id=?cate_lv1_id
+   {% endif%}
+     {% if cate_lv2_id != ""%}
+        and  ta.cate_lv2_id=?cate_lv2_id
+     {% endif%}
+ {% if prd_id != ""%}
+              and  ta.prd_id=?prd_id
+   {% if prop_idslength > 0 %}
+                       and       (
+                        1=2
+                        {% for propId in prop_ids %}
+                           or  ('{{propId}}'  in (select prd_prop_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id )
+                                    {% if property_idslength > 0 %}
+                                       and       (
+                                         1=2
+                                      {% for propIdto in property_ids %}
+                                       or  '{{propIdto}}'  in (select prd_prop_dtl_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id and prd_prop_id ='{{propId}}')
+                                        {% endfor %}
+                                        )
+                                       {% endif%}
+                                  )
+                           {% endfor %}
+                           )
+   {% endif%}
+  {% endif%}
+        {% if prop_idslength > 0 %}
+                               and       (
+                                1=2
+                                {% for propId in prop_ids %}
+                                   or  ('{{propId}}'  in (select prd_prop_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id )
+                                            {% if property_idslength > 0 %}
+                                               and       (
+                                                 1=2
+                                              {% for propIdto in property_ids %}
+                                               or  '{{propIdto}}'  in (select prd_prop_dtl_id from t_goods_property_dtl where prd_id=?prd_id and goods_id=ta.id and prd_prop_id ='{{propId}}')
+                                                {% endfor %}
+                                                )
+                                               {% endif%}
+                                          )
+                                   {% endfor %}
+                                   )
+           {% endif%}
+
+  {% if goods_code != ""%}
+      and  (ta.goods_code like  '%{{goods_code}}%')
+   {% endif %}
+)
+ SELECT count(1) FROM tmp t WHERE t.min_index =1;
+
+[[get.cates.list.lv1]]
+SELECT
+    pc1.id   cate_lv1_id,
+    pc1.name cate_lv1_name
+FROM t_product_category pc1
+WHERE pc1.parent_id = '0' AND pc1.status = 1
+GROUP BY pc1.id, pc1.name
+ORDER BY pc1.disp_idx
+
+[[get.cates.list.lv2]]
+SELECT
+    pc1.id   cate_lv2_id,
+    pc1.name cate_lv2_name
+FROM t_product_category pc1
+WHERE pc1.parent_id = ?cate_lv1 AND pc1.status = 1
+GROUP BY pc1.id, pc1.name
+ORDER BY pc1.disp_idx
+
+[[get.cates.list.lv3]]
+SELECT
+    p.id   product_id,
+    p.name product_name
+FROM t_product p
+WHERE p.status = 1 and  p.cate_lv1_id = ?cate_lv1 and p.cate_lv2_id = ?cate_lv2
+GROUP BY p.id, p.name
+ORDER BY p.disp_idx
+
+[[get.cates.list.lv4]]
+SELECT
+    g.id   goods_id,
+    g.name goods_name,
+    case when sgc.id is null then false else true end supplied
+FROM t_goods g
+LEFT JOIN t_supplier_goods_config sgc on sgc.supplier_id = ?supplier_id and sgc.goods_id= g.id and sgc.status = 1
+WHERE g.status = 1 and g.cate_lv1_id = ?cate_lv1 and g.cate_lv2_id = ?cate_lv2 and g.prd_id = ?product_id and g.status = 1
+
+[[get.goods.cate.names]]
+select  string_agg(x.name,',') as names from (
+   select DISTINCT pc.id,pc.name
+   from t_goods g,t_product_category pc
+   where g.cate_lv1_id = pc.id
+   and g.id in ('-1'
+   {% for goodsId in goods_ids %}
+      ,'{{goodsId}}'
+   {% endfor %}
+   )
+) x
+
+[[get.all.goods.cnt]]
+select count(1) from t_goods g
+	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+	left join t_product p on g.prd_id = p.id
+	left join (
+	   select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+       from (
+          select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+             left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+       ) z group by z.goods_id
+    ) t on t.goods_id = g.id
+where g.status = 1
+ {% if cate_lv1_id != ""%}
+    and  g.cate_lv1_id = ?cate_lv1_id
+ {% endif%}
+ {% if cate_lv2_id != ""%}
+    and  g.cate_lv2_id = ?cate_lv2_id
+ {% endif%}
+ {% if prd_id != ""%}
+    and  g.prd_id = ?prd_id
+ {% endif%}
+ {% if keyword != ""%}
+    and  (g.name ilike '%'||?keyword||'%'or CnFirstChar(g.name) ilike '%'||?keyword||'%'  or g.goods_code ilike '%'||?keyword||'%')
+ {% endif%}
+ {% if goods_type == 2%}
+    and t.regenerant_names is not null
+ {% endif%}
+   {% if category_id != ""%}
+      and g.category_id = ?category_id
+   {% endif%}
+
+[[get.all.goods.list]]
+select g.*,pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,t.regenerant_names,g.main_pic_url,now()::date require_time from t_goods g
+	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+	left join t_product p on g.prd_id = p.id
+	left join (
+	   select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+       from (
+          select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+             left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+       ) z group by z.goods_id
+    ) t on t.goods_id = g.id
+where g.status = 1
+ {% if cate_lv1_id != ""%}
+    and  g.cate_lv1_id = ?cate_lv1_id
+ {% endif%}
+ {% if cate_lv2_id != ""%}
+    and  g.cate_lv2_id = ?cate_lv2_id
+ {% endif%}
+ {% if prd_id != ""%}
+    and  g.prd_id = ?prd_id
+ {% endif%}
+ {% if keyword != ""%}
+    and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%')
+ {% endif%}
+ {% if goods_type == 2%}
+    and t.regenerant_names is not null
+ {% endif%}
+   {% if category_id != ""%}
+      and g.category_id = ?category_id
+   {% endif%}
+ {% if page_num != 0 %}
+    limit ?page_size offset (?page_num - 1) * ?page_size
+ {% endif%}
+
+
+ [[goods.rating.form.supplier.type.list]]
+    select ta.id supplier_id,ta.name supplier_name,ta.SUPPLIER_TYPE supplier_type,(select is_default from t_rating_form_goods_supplier
+                   where rating_form_detail_id=?detailid  and supplier_id=ta.id  and status=1) is_default from T_SUPPLIER ta
+                    LEFT JOIN t_rating_form_goods_supplier  tb on ta.id=tb.supplier_id and rating_form_detail_id=?detailid
+                    where ta.id in (
+                        select supplier_id from t_rating_form_goods_supplier where rating_form_detail_id=?detailid and status=1
+                       )
+        ORDER BY  is_default desc
+
+
+ [[cust.price.goods.list]]
+    select go.id,go.name,un.id unit_id,un.name unit,go.goods_code,go.cate_lv1_id,un.rate unit_rate,
+    go.cate_lv2_id,go.prd_id,go.main_pic_url,rafgs.supplier_id,cust.rating_form_detail_id,rafgs.supplier_alias_id,
+    rafd.sale_to_customer_price,go.spec_scaling,su.supplier_type
+    from t_cust_price_config  cust
+    LEFT JOIN t_rating_form_detail rafd on cust.rating_form_detail_id=rafd.id and cust.status=1
+    left join t_goods go on go.id=rafd.goods_id
+    LEFT JOIN t_unit un on un.id=go.unit_id and un.status=1
+    LEFT JOIN t_rating_form_goods_supplier rafgs on rafgs.rating_form_detail_id=cust.rating_form_detail_id and rafgs.status=1
+    LEFT JOIN t_supplier su on su.id=rafgs.supplier_id and su.status=1
+    where cust.status=1 and cust.customer_id=?customer_id
+
+
+ [[get.all.goods.by.storage.order.cnt]]
+ select count(1) from t_goods g
+ 	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+ 	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+ 	left join t_product p on g.prd_id = p.id
+ 	left join (
+ 	   select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+        from (
+           select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+              left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+        ) z group by z.goods_id
+     ) t on t.goods_id = g.id
+ where g.status = 1
+    {% if rating_type == 1%}
+       and g.id in (select DISTINCT cpc.goods_id from t_cust_price_config cpc
+        WHERE cpc.customer_id = (select customer_id from t_storage where id = ?storage_id ) and cpc.status = 1
+        )
+    {% endif%}
+   {% if rating_type == 2%}
+     and g.id NOT in (select DISTINCT cpc.goods_id from t_cust_price_config cpc
+                             WHERE cpc.customer_id = (select customer_id from t_storage where id = ?storage_id ) and cpc.status = 1
+                             )
+   {% endif%}
+  {% if cate_lv1_id != ""%}
+     and  g.cate_lv1_id = ?cate_lv1_id
+  {% endif%}
+  {% if cate_lv2_id != ""%}
+     and  g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id != ""%}
+     and  g.prd_id = ?prd_id
+  {% endif%}
+  {% if keyword != ""%}
+     and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%'  or g.goods_code ilike '%'||?keyword||'%')
+  {% endif%}
+  {% if goods_type == 2%}
+     and t.regenerant_names is not null
+  {% endif%}
+
+ [[get.all.goods.by.storage.order.list]]
+ select g.id,g.name,g.id goods_id,g.name goods_name,g.cate_lv1_id,g.cate_lv2_id,g.prd_id,g.goods_code,
+ pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,t.regenerant_names,g.main_pic_url,now()::date require_time,u.name unit_name,u.id unit_id,
+tcg.id category_id,
+tcg.name category_name,
+tsf.id specification_id,
+tsf.name specification_name
+ from t_goods g
+    left join t_unit u on u.id = g.unit_id
+ 	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+ 	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+ 	left join t_product p on g.prd_id = p.id
+ 	LEFT JOIN t_category tcg on tcg.id = g.category_id
+    LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+ 	left join (
+ 	   select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+        from (
+           select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+              left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+        ) z group by z.goods_id
+     ) t on t.goods_id = g.id
+ where g.status = 1
+   {% if rating_type == 1%}
+      and g.id in (select DISTINCT cpc.goods_id from t_cust_price_config cpc
+                          WHERE cpc.customer_id = (select customer_id from t_storage where id = ?storage_id ) and cpc.status = 1
+                          )
+   {% endif%}
+   {% if rating_type == 2%}
+         and g.id NOT in (select DISTINCT cpc.goods_id from t_cust_price_config cpc
+                                 WHERE cpc.customer_id = (select customer_id from t_storage where id = ?storage_id ) and cpc.status = 1
+                                 )
+      {% endif%}
+  {% if cate_lv1_id != ""%}
+     and  g.cate_lv1_id = ?cate_lv1_id
+  {% endif%}
+  {% if cate_lv2_id != ""%}
+     and  g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id != ""%}
+     and  g.prd_id = ?prd_id
+  {% endif%}
+  {% if keyword != ""%}
+     and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%')
+  {% endif%}
+  {% if goods_type == 2%}
+     and t.regenerant_names is not null
+  {% endif%}
+  {% if page_num != 0 %}
+     limit ?page_size offset (?page_num - 1) * ?page_size
+  {% endif%}
+
+
+ [[get.all.goods.by.storage.stock.cnt]]
+with tmp as(
+  SELECT DISTINCT goods_id,storage_id,unit_id FROM t_storage_order_detail_stock
+WHERE storage_id=?storage_id AND status=1 and  type = ?goods_type
+)
+SELECT count(1) cnt FROM tmp t
+INNER JOIN t_goods g ON g.id=t.goods_id AND g.status = 1
+left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+left join t_product p on g.prd_id = p.id
+WHERE 1=1
+{% if lv1_temp %}
+ and g.cate_lv1_id in  ('0'
+       {% for id in cate_lv1_id %}
+         ,'{{id}}'
+         {% endfor %}
+   )
+{% endif%}
+{% if lv2_temp %}
+ and g.cate_lv2_id in  ('0'
+       {% for id in cate_lv2_id %}
+         ,'{{id}}'
+         {% endfor %}
+   )
+{% endif%}
+{% if lv3_temp %}
+ and g.prd_id in  ('0'
+       {% for id in prd_id %}
+         ,'{{id}}'
+         {% endfor %}
+   )
+{% endif%}
+  {% if keyword != ""%}
+     and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%'  or g.goods_code ilike '%'||?keyword||'%')
+  {% endif%}
+
+ [[get.all.goods.by.storage.stock.list]]
+with tmp as(
+  SELECT DISTINCT goods_id,storage_id,round(sum(not_used_amount)/100.00,2) amount,unit_id  FROM t_storage_order_detail_stock
+WHERE storage_id=?storage_id AND status=1 and  type = ?goods_type GROUP BY goods_id,storage_id,unit_id
+)
+SELECT g.id||'-'||u1.id as id,
+g.cate_lv1_id,
+g.cate_lv2_id,
+g.prd_id,
+g.unit,
+g.goods_code,
+g.id goods_id,
+g.name goods_name,
+u1.id unit_id,
+u1.name unit_name,
+tcg.id category_id,
+tcg.name category_name,
+tsf.id specification_id,
+tsf.name specification_name,
+gr.regenerant_names,
+t.amount  stock_num,
+pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,g.main_pic_url,now()::date require_time,
+ g.name||'      ('||t.amount||')' as name
+ FROM tmp t
+INNER JOIN t_goods g ON g.id=t.goods_id AND g.status = 1
+left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+left join t_product p on g.prd_id = p.id
+LEFT JOIN t_category tcg on tcg.id = g.category_id
+LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+LEFT JOIN t_unit u1 on u1.id = t.unit_id
+left join (
+	   select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+       from (
+          select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+             left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+       ) z group by z.goods_id
+    ) gr on gr.goods_id = g.id
+WHERE 1=1
+{% if lv1_temp %}
+ and g.cate_lv1_id in  ('0'
+       {% for id in cate_lv1_id %}
+         ,'{{id}}'
+         {% endfor %}
+   )
+{% endif%}
+{% if lv2_temp%}
+ and g.cate_lv2_id in  ('0'
+       {% for id in cate_lv2_id %}
+         ,'{{id}}'
+         {% endfor %}
+   )
+{% endif%}
+{% if lv3_temp %}
+ and g.prd_id in  ('0'
+       {% for id in prd_id %}
+         ,'{{id}}'
+         {% endfor %}
+   )
+{% endif%}
+  {% if keyword != ""%}
+     and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%'  or g.goods_code ilike '%'||?keyword||'%')
+  {% endif%}
+
+
+[[get.all.goods.for.unit.cnt]]
+select count(1) from t_goods g
+    inner join t_unit u on u.id = g.unit_id
+    inner join t_unit u1 on u.unit_type_id = u1.unit_type_id and u1.status = 1
+	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+	left join t_product p on g.prd_id = p.id
+where g.status = 1
+ {% if cate_lv1_id != ""%}
+    and  g.cate_lv1_id = ?cate_lv1_id
+ {% endif%}
+ {% if cate_lv2_id != ""%}
+    and  g.cate_lv2_id = ?cate_lv2_id
+ {% endif%}
+ {% if prd_id != ""%}
+    and  g.prd_id = ?prd_id
+ {% endif%}
+ {% if keyword != ""%}
+    and  (g.name ilike '%'||?keyword||'%'or CnFirstChar(g.name) ilike '%'||?keyword||'%'  or g.goods_code ilike '%'||?keyword||'%')
+ {% endif%}
+   {% if category_id != ""%}
+      and g.category_id = ?category_id
+   {% endif%}
+
+[[get.all.goods.for.unit.list]]
+select g.id||'-'||u1.id as id,g.name||'----'||COALESCE(tsf.name,'')||'----'||u1.name as name,g.goods_code,g.cate_lv1_id,g.cate_lv2_id,g.prd_id,
+pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,g.main_pic_url,
+u1.id unit_id,u1.name unit_name,g.id goods_id,g.name goods_name,tcg.name category_name,tsf.name specification_name
+from t_goods g
+    inner join t_unit u on u.id = g.unit_id
+    inner join t_unit u1 on u.unit_type_id = u1.unit_type_id and u1.status = 1
+	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+	left join t_product p on g.prd_id = p.id
+    LEFT JOIN t_category tcg on tcg.id = g.category_id
+    LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+where g.status = 1
+ {% if cate_lv1_id != ""%}
+    and  g.cate_lv1_id = ?cate_lv1_id
+ {% endif%}
+ {% if cate_lv2_id != ""%}
+    and  g.cate_lv2_id = ?cate_lv2_id
+ {% endif%}
+ {% if prd_id != ""%}
+    and  g.prd_id = ?prd_id
+ {% endif%}
+ {% if keyword != ""%}
+    and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%')
+ {% endif%}
+   {% if category_id != ""%}
+      and g.category_id = ?category_id
+   {% endif%}
+    limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[get.all.goods.by.so.unit.cnt]]
+with tmp as(
+ select
+g.id||'-'||tu.id id,
+g.name||'--'||tsf.name||'--'||tu.name as name,
+tu.id require_unit_id,
+tu.name require_unit_name,
+sgc.stock_num,
+ g.name goods_name,g.id goods_id,g.cate_lv1_id,g.cate_lv2_id,g.prd_id,g.goods_code,g.main_pic_url,tsf.name specification_name,tcg.id category_id,tcg.name category_name,tsf.id specification_id,
+ pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,now()::date require_time,u.name unit_name,u.id unit_id
+ from t_goods g
+     INNER JOIN t_cust_price_config cpc ON cpc.customer_id = (select customer_id from t_storage where id = ?storage_id ) and cpc.status = 1 AND cpc.goods_id = g.id
+     INNER join t_unit tu on tu.id = cpc.unit_id
+    INNER join t_unit u on u.id = g.unit_id
+    LEFT join t_storage_goods_stock sgc on sgc.storage_id = ?storage_id and sgc.goods_id = g.id and sgc.unit_id = u.id and sgc.type = 1 and sgc.status = 1
+ 	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+ 	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+ 	left join t_product p on g.prd_id = p.id
+ 	LEFT JOIN t_category tcg on tcg.id = g.category_id
+    LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+    where 1=1  and g.status =1
+  {% if cate_lv1_id != ""%}
+     and  g.cate_lv1_id = ?cate_lv1_id
+  {% endif%}
+  {% if cate_lv2_id != ""%}
+     and  g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id != ""%}
+     and  g.prd_id = ?prd_id
+  {% endif%}
+  {% if keyword != ""%}
+     and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%')
+  {% endif%}
+{% if rating_type == 0%}
+       UNION
+       (
+          select
+         g.id||'-'||u.id id,
+         g.name||'--'||tsf.name||'--'||u.name as name,
+         u.id require_unit_id,
+         u.name require_unit_name,
+                    0 stock_num,
+          g.name goods_name,g.id goods_id,g.cate_lv1_id,g.cate_lv2_id,g.prd_id,g.goods_code,g.main_pic_url,tsf.name specification_name,tcg.id category_id,tcg.name category_name,tsf.id specification_id,
+          pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,now()::date require_time,u.name unit_name,u.id unit_id
+          from t_goods g
+             INNER join t_unit u on u.id = g.unit_id
+          	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+          	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+          	left join t_product p on g.prd_id = p.id
+          	  LEFT JOIN t_category tcg on tcg.id = g.category_id
+             LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+                 where 1=1  and g.status =1
+           {% if cate_lv1_id != ""%}
+              and  g.cate_lv1_id = ?cate_lv1_id
+           {% endif%}
+           {% if cate_lv2_id != ""%}
+              and  g.cate_lv2_id = ?cate_lv2_id
+           {% endif%}
+           {% if prd_id != ""%}
+              and  g.prd_id = ?prd_id
+           {% endif%}
+           {% if keyword != ""%}
+              and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%')
+           {% endif%}
+)
+{% endif%}
+)
+select count(1) cnt from tmp
+
+[[get.all.goods.by.so.unit.list]]
+with tmp as(
+ select
+g.id||'-'||tu.id id,
+g.name||'--'||COALESCE(tsf.name,'')||'--'||tu.name as name,
+tu.id require_unit_id,
+tu.name require_unit_name,
+sgc.stock_num,
+ g.name goods_name,g.id goods_id,g.cate_lv1_id,g.cate_lv2_id,g.prd_id,g.goods_code,g.main_pic_url,tsf.name specification_name,tcg.id category_id,tcg.name category_name,tsf.id specification_id,
+ pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,now()::date require_time,u.name unit_name,u.id unit_id
+ from t_goods g
+     INNER JOIN t_cust_price_config cpc ON cpc.customer_id = (select customer_id from t_storage where id = ?storage_id ) and cpc.status = 1 AND cpc.goods_id = g.id
+     inner join t_unit tu on tu.id = cpc.unit_id
+    left join t_unit u on u.id = g.unit_id
+    LEFT join t_storage_goods_stock sgc on sgc.storage_id = ?storage_id and sgc.goods_id = g.id and sgc.unit_id = u.id and sgc.type = 1 and sgc.status = 1
+ 	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+ 	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+ 	left join t_product p on g.prd_id = p.id
+ 	LEFT JOIN t_category tcg on tcg.id = g.category_id
+    LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+    where 1=1  and g.status =1
+  {% if cate_lv1_id != ""%}
+     and  g.cate_lv1_id = ?cate_lv1_id
+  {% endif%}
+  {% if cate_lv2_id != ""%}
+     and  g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id != ""%}
+     and  g.prd_id = ?prd_id
+  {% endif%}
+  {% if keyword != ""%}
+     and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%')
+  {% endif%}
+{% if rating_type == 0%}
+       UNION
+       (
+          select
+         g.id||'-'||u.id id,
+         g.name||'--'||COALESCE(tsf.name,'')||'--'||u.name as name,
+         u.id require_unit_id,
+         u.name require_unit_name,
+                    0 stock_num,
+          g.name goods_name,g.id goods_id,g.cate_lv1_id,g.cate_lv2_id,g.prd_id,g.goods_code,g.main_pic_url,tsf.name specification_name,tcg.id category_id,tcg.name category_name,tsf.id specification_id,
+          pc1.name cate_lv1_name,pc2.name cate_lv2_name,p.name prd_name,now()::date require_time,u.name unit_name,u.id unit_id
+          from t_goods g
+             inner join t_unit u on u.id = g.unit_id
+          	left join t_product_category pc1 on g.cate_lv1_id = pc1.id
+          	left join t_product_category pc2 on g.cate_lv2_id = pc2.id
+          	left join t_product p on g.prd_id = p.id
+          	  LEFT JOIN t_category tcg on tcg.id = g.category_id
+             LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+                 where 1=1 and g.status =1
+           {% if cate_lv1_id != ""%}
+              and  g.cate_lv1_id = ?cate_lv1_id
+           {% endif%}
+           {% if cate_lv2_id != ""%}
+              and  g.cate_lv2_id = ?cate_lv2_id
+           {% endif%}
+           {% if prd_id != ""%}
+              and  g.prd_id = ?prd_id
+           {% endif%}
+           {% if keyword != ""%}
+              and  (g.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%')
+           {% endif%}
+)
+{% endif%}
+)
+select row_number () OVER (ORDER BY id) row_num ,* from tmp
+order by tmp.id
+ {% if page_num != 0 %}
+     limit ?page_size offset (?page_num - 1) * ?page_size
+  {% endif%}
+
+

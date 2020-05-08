@@ -1,0 +1,101 @@
+
+[[supplier.goods.by.supplier.stock.cnt]]
+select count(1) from
+       (SELECT DISTINCT supplier_id,goods_id FROM t_warehouse_goods_stock WHERE supplier_id = ?supplierId AND status = 1) tsgs,
+       t_goods tg,t_supplier_goods_config sgc
+    where tsgs.supplier_id=?supplierId and tsgs.goods_id=tg.id
+          and sgc.status=1 and sgc.supplier_id=tsgs.supplier_id and sgc.goods_id=tg.id
+          {% if cateLv1Id!="" %}
+              AND tg.cate_lv1_id = ?cateLv1Id
+          {% endif %}
+          {% if cateLv2Id!="" %}
+              AND tg.cate_lv2_id = ?cateLv2Id
+          {% endif %}
+          {% if prdId!="" %}
+              AND tg.prd_id = ?prdId
+          {% endif %}
+          {% if warningState==1 %}
+                AND tsgs.warning_num < tsgs.stock_num
+          {% endif %}
+          {% if warningState==2 %}
+                AND tsgs.warning_num >= tsgs.stock_num
+          {% endif %}
+{% if keyword!="" %}
+    AND (tg.name ilike '%'||?keyword||'%' or CnFirstChar(tg.name) ilike '%'||?keyword||'%')
+{% endif %}
+
+[[supplier.goods.by.supplier.stock.list]]
+WITH tmp AS (
+    SELECT
+      tsgs.supplier_id,
+      tsgs.goods_id,
+      tsgs.stock_num,
+      tg.name goods_name,
+      tg.unit,
+      tg.prd_id,
+      tg.cate_lv1_id,
+      tg.cate_lv2_id
+    FROM (SELECT DISTINCT supplier_id,goods_id,sum(stock_num) stock_num FROM t_warehouse_goods_stock WHERE supplier_id = ?supplierId AND status = 1 GROUP BY supplier_id,goods_id) tsgs, t_goods tg,t_supplier_goods_config sgc
+    WHERE tsgs.supplier_id=?supplierId and tsgs.goods_id=tg.id
+         and sgc.status=1 and sgc.supplier_id=tsgs.supplier_id and sgc.goods_id=tg.id
+         {% if cateLv1Id!="" %}
+                       AND tg.cate_lv1_id = ?cateLv1Id
+                   {% endif %}
+                   {% if cateLv2Id!="" %}
+                       AND tg.cate_lv2_id = ?cateLv2Id
+                   {% endif %}
+                   {% if prdId!="" %}
+                       AND tg.prd_id = ?prdId
+                   {% endif %}
+         {% if keyword!="" %}
+             AND (tg.name ilike '%'||?keyword||'%' or CnFirstChar(tg.name) ilike '%'||?keyword||'%')
+         {% endif %}
+)
+SELECT
+ tmp.goods_id,
+  tmp.goods_name,
+  tmp.unit,
+  tp.name      prd_name,
+  lv2.name     cate_lv2_name,
+  lv1.name     cate_lv1_name,
+  tmp.stock_num
+FROM tmp, t_product tp, t_product_category lv1, t_product_category lv2
+WHERE
+  tmp.prd_id = tp.id AND tmp.cate_lv1_id = lv1.id AND tmp.cate_lv2_id = lv2.id AND tp.status = 1 AND lv1.status = 1 AND
+  lv2.status = 1
+  order by  convert_to(tmp.goods_name,'UTF-8') LIMIT ?pageSize OFFSET ?pageNum
+
+[[supplier.goods.stock.for.goods.cnt]]
+SELECT
+    count(1) cnt
+      FROM t_warehouse_goods_stock wgs
+INNER JOIN t_warehouse w ON wgs.warehouse_id = w.id
+INNER JOIN t_goods g ON g.id = wgs.goods_id
+INNER JOIN t_supplier_goods_config sgc ON sgc.status=1 and sgc.supplier_id=wgs.supplier_id and sgc.goods_id=g.id
+INNER JOIN t_product p ON p.id = g.prd_id
+INNER JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id AND pc1.status = 1
+INNER JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id AND pc2.status = 1
+ WHERE wgs.supplier_id = ?supplier_id AND wgs.goods_id = ?goods_id
+
+[[supplier.goods.stock.for.goods.list]]
+SELECT
+     wgs.id ,
+     w.id warehouse_id,
+     w.name warehouse_name,
+     g.name goods_name,
+     p.name prd_name,
+     pc1.name cate_lv1_name,
+     pc2.name cate_lv2_name,
+     g.unit,
+     wgs.warning_num,
+     wgs.stock_num
+     FROM t_warehouse_goods_stock wgs
+INNER JOIN t_warehouse w ON wgs.warehouse_id = w.id
+INNER JOIN t_goods g ON g.id = wgs.goods_id
+INNER JOIN t_supplier_goods_config sgc ON sgc.status=1 and sgc.supplier_id=wgs.supplier_id and sgc.goods_id=g.id
+INNER JOIN t_product p ON p.id = g.prd_id
+INNER JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id AND pc1.status = 1
+INNER JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id AND pc2.status = 1
+ WHERE wgs.supplier_id = ?supplier_id AND wgs.goods_id = ?goods_id
+ order by w.id
+

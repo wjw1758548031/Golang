@@ -1,0 +1,31 @@
+[[onshelves.list]]
+
+[[category.list.parent.by.multiple.list]]
+select * from t_product_category
+where status = 1 and parent_id
+in ('-1'
+              {% for id in parent_id %}
+              ,'{{id}}'
+              {% endfor %}
+         )
+order by parent_id,disp_idx
+
+[[list.cate2.id.by.multiple.list]]
+select * from t_product
+where status = 1 and cate_lv2_id
+in ('-1'
+              {% for id in cate_lv2_id %}
+              ,'{{id}}'
+              {% endfor %}
+         )
+order by cate_lv1_id,cate_lv2_id,cast(id as integer ) desc
+
+[[list.cate1.id.by.multiple.list]]
+select * from t_product
+where status = 1 and cate_lv1_id
+in ('-1'
+              {% for id in cate_lv1_id %}
+              ,'{{id}}'
+              {% endfor %}
+         )
+order by cate_lv1_id,cate_lv2_id,cast(id as integer ) desc

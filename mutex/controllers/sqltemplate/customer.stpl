@@ -1,0 +1,559 @@
+[[query.customer.list.cnt]]
+select count(*) from t_customer c,
+t_province p,t_city tc,t_district d,t_customer_grade tcg  where c.status=1
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (c.name ilike '%'|| ?keyword ||'%' or CnFirstChar(c.name) ilike '%'|| ?keyword ||'%')
+{% endif%}
+and c.province_id=p.id and c.city_id=tc.id and c.district_id=d.id and tcg.customer_id = c.id
+and c.parent_customer_id = ?parent_customer_id
+
+[[query.customer.list]]
+select c.* ,p.name province_name,tc.name city_name,d.name district_name,
+COALESCE(tcg.account_period,0) as account_period,tcg.available_quota + COALESCE(tcg.provisional_quota,0) total_quota,tcg.all_quota
+from t_customer c,
+t_province p,t_city tc,t_district d,t_customer_grade tcg  where c.status=1
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (c.name ilike '%'|| ?keyword ||'%' or CnFirstChar(c.name) ilike '%'|| ?keyword ||'%')
+{% endif%}
+and c.province_id=p.id and c.city_id=tc.id and c.district_id=d.id and tcg.customer_id = c.id
+and c.parent_customer_id = ?parent_customer_id
+order by c.update_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.customer.export.list]]
+select c.* ,p.name province_name,tc.name city_name,d.name district_name,
+COALESCE(tcg.account_period,0) as account_period,tcg.available_quota + COALESCE(tcg.provisional_quota,0) total_quota,tcg.all_quota
+from t_customer c,
+t_province p,t_city tc,t_district d,t_customer_grade tcg where c.status=1
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (c.name ilike '%'|| ?keyword ||'%')
+{% endif%}
+and c.province_id=p.id and c.city_id=tc.id and c.district_id=d.id and tcg.customer_id = c.id
+and c.parent_customer_id = ?parent_customer_id
+order by c.update_time desc
+
+[[query.customer.export.list.for.jt]]
+select c.* ,p.name province_name,tc.name city_name,d.name district_name,
+COALESCE(tcg.account_period,0) as account_period,tcg.available_quota + COALESCE(tcg.provisional_quota,0) total_quota,tcg.all_quota
+from t_customer c,
+t_province p,t_city tc,t_district d,t_customer_grade tcg where c.status=1
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (c.name ilike '%'|| ?keyword ||'%' or t.login_name ilike '%'|| ?keyword ||'%')
+{% endif%}
+and c.province_id=p.id and c.city_id=tc.id and c.district_id=d.id and tcg.customer_id = c.id
+and c.parent_customer_id = ?parent_customer_id
+and c.id in (select customer_id from t_account_child_customer where account_id = ?account_id)
+order by c.update_time desc
+
+[[query.parent.customer.list.cnt]]
+with t as (
+    select parent_customer_id, count(1) cnt from t_customer
+    where parent_customer_id <> '0' and status = 1
+    group by parent_customer_id
+)
+select count(1) from (
+  select c.*,t.cnt from t_customer c
+    left join t on c.id = t.parent_customer_id
+  where c.parent_customer_id = '0' and c.status = 1
+) v,t_province p,t_city y, t_district d,t_account a,t_acct_role ar,t_role r
+where  v.province_id = p.id and v.city_id = y.id and v.district_id = d.id and a.customer_id = v.id and
+a.id = ar.account_id and ar.role_id = r.id and r.role_code = 'cst_super_admin' and r.account_type = 5
+{% if province_id!="" %}
+ and v.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and v.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and v.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (v.name ilike '%'|| ?keyword ||'%' or a.login_name ilike '%'|| ?keyword ||'%')
+{% endif%}
+
+[[query.parent.customer.list]]
+with t as (
+    select parent_customer_id, count(1) cnt from t_customer
+    where parent_customer_id <> '0' and status = 1
+    group by parent_customer_id
+)
+select v.*,p.name province_name,y.name city_name,d.name district_name,a.id account_id,a.login_name account_name from (
+  select c.*,t.cnt from t_customer c
+    left join t on c.id = t.parent_customer_id
+  where c.parent_customer_id = '0' and c.status = 1
+) v,t_province p,t_city y, t_district d,t_account a,t_acct_role ar,t_role r
+where  v.province_id = p.id and v.city_id = y.id and v.district_id = d.id and a.customer_id = v.id and
+a.id = ar.account_id and ar.role_id = r.id and r.role_code = 'cst_super_admin' and r.account_type = 5
+{% if province_id!="" %}
+ and v.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and v.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and v.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (v.name ilike '%'|| ?keyword ||'%' or a.login_name ilike '%'|| ?keyword ||'%')
+{% endif%}
+order by v.update_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.parent.customer.export.list]]
+with t as (
+    select parent_customer_id, count(1) cnt from t_customer
+    where parent_customer_id <> '0' and status = 1
+    group by parent_customer_id
+)
+select v.*,p.name province_name,y.name city_name,d.name district_name,a.id account_id,a.login_name account_name from (
+  select c.*,t.cnt from t_customer c
+    left join t on c.id = t.parent_customer_id
+  where c.parent_customer_id = '0' and c.status = 1
+) v,t_province p,t_city y, t_district d,t_account a,t_acct_role ar,t_role r
+where  v.province_id = p.id and v.city_id = y.id and v.district_id = d.id and a.customer_id = v.id and
+a.id = ar.account_id and ar.role_id = r.id and r.role_code = 'cst_super_admin' and r.account_type = 5
+{% if province_id!="" %}
+ and v.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and v.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and v.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (v.name ilike '%'|| ?keyword ||'%' or a.login_name ilike '%'|| ?keyword ||'%')
+{% endif%}
+order by v.update_time desc
+
+[[query.jt.info]]
+with temp as (
+    SELECT
+       a.id                                         account_id,
+       a.name                                       account_name,
+       a.login_name,
+       a.create_time,
+       string_agg(r.name, ',')                      role_name,
+       String_agg(r.id, ',')                        role_id
+     FROM t_account a, t_acct_role ar, t_role r
+     WHERE a.id = ?id AND a.id = ar.account_id AND ar.role_id = r.id AND ar.status = 1
+     GROUP BY a.id, a.name, a.login_name, a.create_time
+)
+select t.* ,String_agg(cc.name, ',') kid_customer_name,String_agg(cc.id, ',') kid_customer_id
+from temp t
+left join t_account_child_customer acc on t.account_id = acc.account_id
+left join t_customer cc on cc.id = acc.customer_id
+group by t.account_id,t.account_name,
+  t.login_name,t.create_time,
+  t.role_name,t.role_id
+
+[[query.customer.list.for.jt.cnt]]
+select count(1) from t_customer c,
+t_province p,t_city tc,t_district d,t_customer_grade tcg  where c.status=1
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (c.name ilike '%'|| ?keyword ||'%' or CnFirstChar(c.name) ilike '%'|| ?keyword ||'%' )
+{% endif%}
+and c.province_id=p.id and c.city_id=tc.id and c.district_id=d.id and tcg.customer_id = c.id
+and exists (
+   select * from t_customer cs
+   inner join (
+      select * from t_account_child_customer where account_id = ?account_id
+   )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+            or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+   where cs.leaf = 1 and cs.id = c.id
+)
+
+[[query.customer.list.for.jt]]
+select c.* ,p.name province_name,tc.name city_name,d.name district_name,
+COALESCE(tcg.account_period,0) as account_period,tcg.available_quota + COALESCE(tcg.provisional_quota,0) total_quota,tcg.all_quota,
+p.name || ' ' || tc.name || ' ' || d.name AS location
+from t_customer c,
+t_province p,t_city tc,t_district d,t_customer_grade tcg  where c.status=1
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (c.name ilike '%'|| ?keyword ||'%' or CnFirstChar(c.name) ilike '%'|| ?keyword ||'%' )
+{% endif%}
+and c.province_id=p.id and c.city_id=tc.id and c.district_id=d.id and tcg.customer_id = c.id
+and exists (
+   select * from t_customer cs
+   inner join (
+      select * from t_account_child_customer where account_id = ?account_id
+   )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+            or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+   where cs.leaf = 1  and cs.status = 1 and cs.id = c.id
+)
+order by cast(c.id as integer) desc
+{% if page_size!=0 %}
+limit ?page_size offset (?page_num - 1) * ?page_size
+{% endif%}
+
+[[query.child.customer.rating.list]]
+with t as (
+    select c.id customer_id,c.name customer_name,c.receive_address
+     from t_account_child_customer acc
+    inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+    where account_id = ?account_id
+)
+select x.*,o.receive_contact,COALESCE(g.count, 0) count,cg.all_quota,(cg.available_quota+cg.provisional_quota) total_quota from t x
+  left join  t_order o on cast(o.id as integer) in
+      (select max(cast(id as integer)) from t_order where customer_id in (select t.customer_id from t) group by customer_id)
+      and x.customer_id = o.customer_id
+  left join (select customer_id,COALESCE(sum(amount), 0) count
+           from t_shopping_cart
+           where customer_id in (select t.customer_id from t) and select_status =1 and account_id = ?account_id
+           group by customer_id
+  ) g ON g.customer_id = x.customer_id
+  left join t_customer_grade cg on x.customer_id = cg.customer_id
+
+
+
+
+[[query.child.customer.list]]
+select ta.role_id customer_id,(select name from T_CUSTOMER where id=ta.role_id ) customer_name,
+(select all_quota from T_CUSTOMER_GRADE where CUSTOMER_ID=ta.role_id) all_quota ,
+(select (available_quota+provisional_quota) from T_CUSTOMER_GRADE where CUSTOMER_ID=ta.role_id) total_quota,
+(select RECEIVE_ADDRESS from T_CUSTOMER where id=ta.role_id ) receive_address,
+(select receive_contact from t_order o
+      where  cast(o.id as integer) in
+      (select max(cast(id as integer)) from t_order where customer_id in (select ta.role_id from t_acct_role ta where  account_id=?account_id  and status=1)
+      group by customer_id)
+      and   o.customer_id=ta.role_id)
+from t_acct_role ta where  account_id=?account_id  and status=1
+
+
+[[alwaysbuy.all.cnt]]
+with tmp as (
+   select
+   customer_id,
+   goods_id,
+   buy_cnt from
+  (select *,
+  ROW_NUMBER() over(partition by customer_id order by buy_cnt desc) rowNum
+  from ( SELECT count(goods_id ) buy_cnt,customer_id,goods_id from t_order
+   WHERE  customer_id in (SELECT acc.customer_id from t_account_child_customer acc,t_customer c where acc.account_id=?id and c.id=acc.customer_id and c.status = 1)
+   GROUP BY customer_id,goods_id) t) as s where s.rowNum <= 50
+   group by customer_id,goods_id,buy_cnt
+)
+SELECT count(1)
+from tmp,t_customer c,t_goods g,(select goods_id,customer_id,sale_to_customer_price,ROW_NUMBER() over(partition by customer_id,goods_id order by goods_id) as new_index
+from t_order WHERE  customer_id in (SELECT acc.customer_id from t_account_child_customer acc,t_customer c where acc.account_id=?id and c.id=acc.customer_id and c.status = 1)) copy
+where tmp.goods_id=g.id
+      and g.status=1
+      and tmp.customer_id=c.id
+      and c.status=1
+      and tmp.goods_id=copy.goods_id
+      and tmp.customer_id=copy.customer_id
+      and copy.new_index=1
+            {% if cate_lv1_id!="" %}
+             and g.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if customer_id!="" %}
+             and tmp.customer_id=?customer_id
+            {% endif%}
+            {% if keyword!="" %}
+             and g.name like '%{{keyword}}%'
+            {% endif%}
+
+[[alwaysbuy.all.list]]
+with tmp as (
+   select
+   customer_id,
+   goods_id,
+   buy_cnt from
+  (select *,
+  ROW_NUMBER() over(partition by customer_id order by buy_cnt desc) rowNum
+  from ( SELECT count(goods_id ) buy_cnt,customer_id,goods_id from t_order
+   WHERE  customer_id in (SELECT acc.customer_id from t_account_child_customer acc,t_customer c where acc.account_id=?id and c.id=acc.customer_id and c.status = 1)
+   GROUP BY customer_id,goods_id) t) as s where s.rowNum <= 50
+   group by customer_id,goods_id,buy_cnt
+)
+SELECT tmp.buy_cnt,
+  c.name customer_name,
+  g.name goods_name,
+  g.goods_code goods_code,
+  tmp.goods_id,
+  c.id customer_id,
+  g.main_pic_url,
+  g.unit,
+  copy.sale_to_customer_price
+from tmp,t_customer c,t_goods g,(select goods_id,customer_id,sale_to_customer_price,ROW_NUMBER() over(partition by customer_id,goods_id order by goods_id) as new_index
+from t_order WHERE  customer_id in (SELECT acc.customer_id from t_account_child_customer acc,t_customer c where acc.account_id=?id and c.id=acc.customer_id and c.status = 1)) copy
+where tmp.goods_id=g.id
+      and g.status=1
+      and tmp.customer_id=c.id
+      and c.status=1
+      and tmp.goods_id=copy.goods_id
+      and tmp.customer_id=copy.customer_id
+      and copy.new_index=1
+            {% if cate_lv1_id!="" %}
+             and g.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if customer_id!="" %}
+             and tmp.customer_id=?customer_id
+            {% endif%}
+            {% if keyword!="" %}
+             and g.name like '%{{keyword}}%'
+            {% endif%}
+              order by tmp.buy_cnt desc,convert_to(g.name,'UTF-8') asc
+             limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.limit.buy.list.cnt]]
+SELECT count(1) cnt
+FROM t_customer c
+INNER JOIN t_customer c1 ON c1.id = c.parent_customer_id AND c1.status = 1
+INNER JOIN t_province p ON p.id = c.province_id AND p.status = 1
+INNER JOIN t_city ci on ci.id = c.city_id AND ci.status = 1
+INNER JOIN t_district d ON d.id = c.district_id AND d.status = 1
+LEFT  JOIN (SELECT count(goods_id),customer_id FROM t_cust_goods_restriction  WHERE status = 1 GROUP BY customer_id) as cgr ON cgr.customer_id = c.id
+WHERE c.status = 1
+{% if province_id!="" %}
+  and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+  and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+  and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+ and (c.name like '%{{keyword}}%' or  c1.name like '%{{keyword}}%' or CnFirstChar(c.name) like '%{{keyword}}%' or  CnFirstChar(c1.name) like '%{{keyword}}%')
+{% endif%}
+
+[[query.limit.buy.list.list]]
+SELECT
+ROW_NUMBER () OVER (ORDER BY c.create_time desc) AS row_num,
+c.id customer_id,
+  c.name customer_name,
+  c1.name parent_customer_name,
+  c1.id parent_customer_id,
+  p.name province_name,
+  p.id province_id,
+  ci.name city_name,
+  ci.id city_id,
+  d.id district_id,
+  d.name district_name,
+  cgr.count goods_cnt
+FROM t_customer c
+INNER JOIN t_customer c1 ON c1.id = c.parent_customer_id AND c1.status = 1
+INNER JOIN t_province p ON p.id = c.province_id AND p.status = 1
+INNER JOIN t_city ci on ci.id = c.city_id AND ci.status = 1
+INNER JOIN t_district d ON d.id = c.district_id AND d.status = 1
+LEFT  JOIN (SELECT count(goods_id),customer_id FROM t_cust_goods_restriction  WHERE status = 1 GROUP BY customer_id) as cgr ON cgr.customer_id = c.id
+WHERE c.status = 1
+{% if province_id!="" %}
+  and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+  and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+  and c.district_id=?district_id
+{% endif%}
+{% if keyword!="" %}
+  and (c.name like '%{{keyword}}%' or  c1.name like '%{{keyword}}%' or CnFirstChar(c.name) like '%{{keyword}}%' or  CnFirstChar(c1.name) like '%{{keyword}}%')
+{% endif%}
+limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.limit.buy.detail.list.cnt]]
+SELECT
+     count(1) cnt
+FROM t_goods g
+INNER JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id AND pc1.status = 1
+INNER JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id AND pc2.status = 1
+INNER JOIN t_product p ON p.id= g.prd_id AND p.status = 1
+LEFT JOIN t_cust_goods_restriction cgr ON cgr.goods_id = g.id AND cgr.status =1 and cgr.customer_id = ?customer_id
+WHERE g.status = 1
+
+[[query.limit.buy.detail.list.list]]
+SELECT
+   cgr.id,
+   g.name goods_name,
+   g.id goods_id,
+   pc1.name cate_lv1_name,
+   pc2.name cate_lv2_name,
+   p.name prd_name,
+   cgr.limit_amount,
+   cgr.balance_amount
+FROM t_goods g
+INNER JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id AND pc1.status = 1
+INNER JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id AND pc2.status = 1
+INNER JOIN t_product p ON p.id= g.prd_id AND p.status = 1
+LEFT JOIN t_cust_goods_restriction cgr ON cgr.goods_id = g.id AND cgr.status =1 and cgr.customer_id = ?customer_id
+WHERE g.status = 1
+{% if cate_lv1_id!="" %}
+  and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+  and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if product_id!="" %}
+  and g.product_id=?product_id
+{% endif%}
+{% if keyword!="" %}
+  and (g.name like '%{{keyword}}%' or CnFirstChar(g.name) ilike '%{{keyword}}%' or  g.goods_code like '%{{keyword}}%')
+{% endif%}
+ORDER by cgr.limit_amount
+limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.all.parent.customer.for.admin.list]]
+select id,name
+from t_customer
+where status=1 and parent_customer_id='0'
+order by cast(id as integer) asc
+
+[[query.all.customer.by.jt.list]]
+select id,name
+from t_customer
+where status=1 and parent_customer_id=?id
+order by cast(id as integer) asc
+
+[[customer.list.for.select.by.jt.cnt]]
+SELECT count(1) cnt FROM t_customer c
+WHERE status = 1 and c.parent_customer_id!='0' and c.leaf = '1'
+{% if parent_customer_id!="" %}
+  and c.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if keyword!="" %}
+  and c.name like '%{{keyword}}%'
+{% endif%}
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+
+[[customer.list.for.select.by.jt.list]]
+SELECT c.id customer_id,c.name customer_name FROM t_customer c
+WHERE status = 1  and c.parent_customer_id!='0'  and c.leaf = '1'
+{% if parent_customer_id!="" %}
+  and c.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if keyword!="" %}
+  and c.name like '%{{keyword}}%'
+{% endif%}
+{% if province_id!="" %}
+ and c.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and c.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and c.district_id=?district_id
+{% endif%}
+order by cast(c.id as integer) desc
+
+[[all.customer.list.by.tree.select.list]]
+WITH tmp as (
+  SELECT   CASE WHEN parent_customer_id = '0'  THEN id||','|| CASE WHEN tree_ids ISNULL THEN '' ELSE tree_ids END ELSE  tree_ids||','||id END  rum,* FROM t_customer WHERE status = 1
+)
+SELECT t.*,p.name province_name,c.name city_name,d.name district_name,t.id as key,t.id as value,t.name as label,
+case when t.leaf = 1 then '场所' else '区域' end leaf_desc
+FROM tmp t
+LEFT JOIN t_province p on p.id = t.province_id
+LEFT JOIN t_city c on c.id = t.city_id
+LEFT JOIN t_district d on d.id = t.district_id
+where 1=1
+{% if keyword!="" %}
+  and t.name like '%{{keyword}}%'
+{% endif%}
+{% if province_id!="" %}
+ and t.province_id=?province_id
+{% endif%}
+{% if city_id!="" %}
+ and t.city_id=?city_id
+{% endif%}
+{% if district_id!="" %}
+ and t.district_id=?district_id
+{% endif%}
+ ORDER BY rum
+
+
+[[get.customer.list.by.tree.select.list]]
+WITH tmp as (
+  SELECT   CASE WHEN parent_customer_id = '0'  THEN id||','|| CASE WHEN tree_ids ISNULL THEN '' ELSE tree_ids END ELSE  tree_ids||','||id END  rum,* FROM t_customer WHERE status = 1
+)
+SELECT t.*,
+t.id as key,
+t.id as value,
+t.name as label,
+{% if type == "1" %}
+ case when acc.id isnull then true else false end disabled
+{% endif%}
+{% if type == "2" %}
+ case when t.leaf = 0 then true else false end disabled
+{% endif%}
+{% if type == "3" %}
+ case when t.leaf = 1 then true else false end disabled
+{% endif%}
+{% if type != "1" && type != "2" && type != "3" %}
+  false disabled
+{% endif%}
+FROM tmp t
+{% if type == "1" %}
+  left JOIN t_account_child_customer acc on acc.account_id = ?account_id
+  and  (t.id = acc.customer_id or tree_ids like '%,'||acc.customer_id||',%' or  tree_ids like '%,'||acc.customer_id or  tree_ids like acc.customer_id||',%' or tree_ids like acc.customer_id)
+{% endif%}
+where 1=1
+{% if leaf == "0" || leaf == "1"  %}
+  and t.leaf=?leaf
+{% endif%}
+{% if customer_id != "" %}
+  and t.id !=?customer_id
+{% endif%}
+
+ ORDER BY rum

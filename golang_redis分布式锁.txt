@@ -1,0 +1,52 @@
+
+func newPool(server string) *redis.Pool {
+	return &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", server)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
+}
+
+func newPools(servers []string) []redsync.Pool {
+	pools := make([]redsync.Pool,0)
+	for _, server := range servers {
+		pool := newPool(server)
+		pools = append(pools, pool)
+	}
+
+	return pools
+}
+
+func main() {
+	//	"github.com/gomodule/redigo/redis"
+	//	"gopkg.in/redsync.v1"
+	//"127.0.0.1:6379", "127.0.0.1:6378", "127.0.0.1:6377" 多个连接
+	pools := newPools([]string{"127.0.0.1:6379"})
+	rs := redsync.New(pools)
+	//lock路径一下，首先会去lock路径查看有没有数据，没有则进行加锁，有则进行堵塞
+	m := rs.NewMutex("/lock")
+
+	err := m.Lock()
+	if err != nil {
+		panic(err)
+	}
+	c := time.NewTicker(10*time.Second)
+	<- c.C
+	fmt.Println("lock success")
+	//lock删除数据
+	unlockRes := m.Unlock()
+	fmt.Println("unlock result: ", unlockRes)
+
+}

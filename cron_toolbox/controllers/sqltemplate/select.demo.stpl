@@ -1,0 +1,1 @@
+select id,name,create_time,update_time,status from t_supplier where {% if count>1 %} id= ?id {% else %} name= ?name {% endif %}

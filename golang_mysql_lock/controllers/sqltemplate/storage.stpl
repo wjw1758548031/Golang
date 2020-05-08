@@ -1,0 +1,382 @@
+[[query.storage.type.for.center.cnt]]
+select
+count(1) cnt
+ from t_storage_type st
+ where 1=1
+{% if status != 0 %}
+ AND st.status=?status
+{% endif%}
+{% if keyword != "" %}
+   AND   (st.name ilike '%'||?keyword||'%' or CnFirstChar(st.name) ilike '%'||?keyword||'%')
+{% endif%}
+
+[[query.storage.type.for.center.list]]
+select
+    row_number() OVER (ORDER BY st.create_time DESC ) as number,
+    st.id,
+    st.name,
+    st.status,
+    CASE  st.status WHEN  1 THEN '有效' ELSE '无效' END AS status_name
+ from t_storage_type st
+ where 1=1
+{% if status != 0 %}
+ AND st.status=?status
+{% endif%}
+{% if keyword != "" %}
+   AND (st.name ilike '%'||?keyword||'%' or CnFirstChar(st.name) ilike '%'||?keyword||'%')
+{% endif%}
+order by st.create_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.storage.for.center.cnt]]
+    SELECT count(1) cnt
+    FROM t_storage s
+       INNER JOIN t_storage_property sp on sp.id=s.storage_property_id AND sp.status = 1
+       INNER JOIN t_storage_type st on st.id = s.storage_type_id AND st.status =1
+       INNER JOIN t_customer c on c.id = s.customer_id AND c.status =1
+       INNER JOIN t_customer jtc on jtc.id = c.parent_customer_id AND jtc.status = 1
+       WHERE  1=1
+             {% if storage_type_id != "" %}
+              AND s.storage_type_id=?storage_type_id
+             {% endif%}
+             {% if jt_id != "" %}
+              AND jtc.id=?jt_id
+             {% endif%}
+             {% if keyword != "" %}
+              AND (s.storage_code ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%')
+             {% endif%}
+
+[[query.storage.for.center.list]]
+ SELECT s.id,
+       s.name storage_name,
+       s.storage_code,
+       s.customer_id,
+       c.name customer_name,
+       jtc.id jt_id,
+       jtc.name jt_name,
+       s.storage_property_id,
+       sp.name storage_property_name,
+       s.storage_type_id ,
+       st.name storage_type_name ,
+       s.status,
+       CASE s.status WHEN 1 THEN '有效' ELSE '无效' END status_name
+    FROM t_storage s
+       INNER JOIN t_storage_property sp on sp.id=s.storage_property_id AND sp.status = 1
+       INNER JOIN t_storage_type st on st.id = s.storage_type_id AND st.status =1
+       INNER JOIN t_customer c on c.id = s.customer_id AND c.status =1
+       INNER JOIN t_customer jtc on jtc.id = c.parent_customer_id AND jtc.status = 1
+       WHERE  1=1
+             {% if storage_type_id != "" %}
+              AND s.storage_type_id=?storage_type_id
+             {% endif%}
+             {% if jt_id != "" %}
+              AND jtc.id=?jt_id
+             {% endif%}
+             {% if keyword != "" %}
+              AND (s.storage_code ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%')
+             {% endif%}
+      ORDER BY s.create_time DESC, s.name limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.storage.action.type.cnt]]
+select count(1) cnt from t_storage_action_type where  status != 3
+    {% if type_id==6  %}
+    AND condition = 2 and type=2
+    {% endif%}
+    {% if type_id==7  %}
+    AND condition = 2 and type=3
+    {% endif%}
+    {% if type_id!=6  && type_id!=7  %}
+    AND condition = 1 and id = ?type_id
+    {% endif%}
+    {% if status!=0  %}
+    and status = ?status
+    {% endif%}
+
+[[query.storage.action.type.list]]
+select
+    id,
+    case when cast(id as integer) < 100 then 2 else 1 end operate_status,
+    row_number() OVER (ORDER BY create_time DESC ) as number,
+    name,
+    status,
+    type,
+    create_time,
+    CASE WHEN status = 1 THEN '有效' ELSE '无效'  end status_desc,
+    update_time
+ from t_storage_action_type where status != 3
+    {% if type_id==6  %}
+    AND condition = 2 and type=2
+    {% endif%}
+    {% if type_id==7  %}
+    AND condition = 2 and type=3
+    {% endif%}
+    {% if type_id!=6  && type_id!=7  %}
+    AND condition = 1 and id = ?type_id
+    {% endif%}
+    {% if status!=0  %}
+    and status = ?status
+    {% endif%}
+order by create_time desc, cast(id as integer) desc
+
+[[query.storages.cnt.by.from.cus]]
+select count(*) cnt
+FROM t_storage s
+where s.customer_id in (
+  select id from t_customer where parent_customer_id = ?parent_customer_id
+) and s.status = 1 and s.storage_property_id = '1'
+
+[[query.storages.list.by.from.cus]]
+select
+   s.id,
+   s.name storage_name,
+   s.storage_code,
+   s.customer_id,
+   s.storage_property_id,
+   s.storage_type_id ,
+   s.status
+FROM t_storage s
+where s.customer_id in (
+  select id from t_customer where parent_customer_id = ?parent_customer_id
+) and s.status = 1 and s.storage_property_id = '1'
+order by s.create_time desc
+limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.storages.cnt.by.apply.storage]]
+select count(*) cnt
+FROM t_storage s
+where s.customer_id in (
+  select id from t_customer where parent_customer_id in (
+    select parent_customer_id customer_id from t_customer where id =(
+      select customer_id from t_storage where id = ?apply_storage_id
+    )union
+    select customer_id from t_storage where id = ?apply_storage_id
+  )
+) and s.status = 1 and s.storage_property_id = '1'
+
+[[query.storages.list.by.apply.storage]]
+select
+   s.id,
+   s.name storage_name,
+   s.storage_code,
+   s.customer_id,
+   s.storage_property_id,
+   s.storage_type_id ,
+   s.status,
+   c.name customer_name,
+   c1.name jt_name
+FROM t_storage s
+LEFT JOIN t_customer c ON c.id = s.customer_id and c.status =1
+LEFT JOIN t_customer c1 ON c1.id = c.parent_customer_id and c.status =1
+where s.customer_id in (
+  select id from t_customer where parent_customer_id in (
+    select parent_customer_id customer_id from t_customer where id =(
+      select customer_id from t_storage where id = ?apply_storage_id
+    )union
+    select customer_id from t_storage where id = ?apply_storage_id
+  )
+) and s.status = 1 and s.storage_property_id = '1'
+order by s.create_time desc
+limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.jtlistvo.for.storage.order.cnt]]
+SELECT count(1) cnt from t_customer c where c.parent_customer_id = '0'
+{% if keyword!="" %}
+and c.name ilike '%'||?keyword||'%'
+{% endif%}
+
+[[query.jtlistvo.for.storage.order.list]]
+    SELECT c.id,
+    c.name,
+    p.name province_name,
+    city.name city_name,
+    d.name district_name,
+    c.status,
+    tm.meta_desc status_desc
+from t_customer c
+INNER JOIN t_province p ON  p.id=c.province_id
+INNER JOIN t_city city on city.id =c.city_id
+INNER JOIN t_district d ON d.id = c.district_id
+INNER JOIN t_metadata_map tm ON tm.meta_code = 'cfg_status' AND tm.meta_val = c.status
+where parent_customer_id = '0'
+    {% if keyword != "" %}
+    and c.name ilike '%'||?keyword||'%'
+    {% endif%}
+    limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.all.storage.list.by.all.jt]]
+SELECT s.id storage_id,
+   s.name storage_name
+FROM t_storage s
+inner join t_customer c on s.customer_id = c.id and c.status = 1
+where s.status = 1
+{% if temp %}
+     and s.storage_property_id in ('0'
+            {% for property_id in property_ids %}
+            ,'{{property_id}}'
+            {% endfor %}
+    )
+{% endif%}
+ order by s.customer_id, s.create_time desc, cast(s.id as integer) desc
+
+[[query.from.storage.by.cus.goods.list]]
+SELECT  DISTINCT so.from_storage_id id , s1.name as name from t_storage s
+INNER JOIN t_storage_order so ON s.id = so.to_storage_id
+INNER JOIN t_storage s1 ON s1.id = so.from_storage_id
+INNER JOIN t_storage_order_detail  sod ON sod.storage_order_id = so.id AND sod.type = 1 AND goods_id =?goods_id and sod.status = 1
+WHERE s.customer_id = ?customer_id
+    UNION
+SELECT DISTINCT CASE so.storage_action_type_id WHEN '4' THEN '1' ELSE '2' END as id, CASE so.storage_action_type_id WHEN '4' THEN '娱集市' ELSE '--' END as name from t_storage s
+INNER JOIN t_storage_order so ON s.id = so.to_storage_id AND so.from_storage_id ='' AND so.storage_action_type_id != '1'
+INNER JOIN t_storage_order_detail  sod ON sod.storage_order_id = so.id AND sod.type = 1 AND goods_id = ?goods_id and sod.status = 1
+WHERE s.customer_id =?customer_id
+
+[[query.to.storage.by.cus.goods.list]]
+SELECT  DISTINCT so.to_storage_id id , s1.name as name from t_storage s
+INNER JOIN t_storage_order so ON s.id = so.from_storage_id
+INNER JOIN t_storage s1 ON s1.id = so.to_storage_id
+INNER JOIN t_storage_order_detail  sod ON sod.storage_order_id = so.id AND sod.type = 1 AND goods_id = ?goods_id and sod.status = 1
+WHERE s.customer_id = ?customer_id
+    UNION
+SELECT '1'as id ,'--'as name
+
+[[query.storage.by.cus.goods.list]]
+SELECT s.id,s.name FROM t_storage s
+  INNER JOIN t_storage_order so ON so.from_storage_id = s.id AND so.storage_order_status = 8
+    INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND type = 1 AND goods_id = ?goods_id and sod.status = 1
+    WHERE s.customer_id =?customer_id
+  UNION
+SELECT s.id,s.name FROM t_storage s
+  INNER JOIN t_storage_order_detail_stock sods ON sods.storage_id  = s.id AND sods.goods_id = ?goods_id AND sods.type = 1 and sod.status = 1
+  WHERE s.customer_id = ?customer_id;
+
+[[query.storage.by.acct.list]]
+SELECT DISTINCT s.id storage_id,s.name storage_name FROM t_account acct
+INNER JOIN t_account_child_customer acc ON acc.account_id = acct.id
+INNER JOIN t_customer tc ON tc.status = 1  and tc.leaf = 1 and  (tc.tree_ids like '%,' || acc.customer_id ||',%' or tc.tree_ids like '%,'|| acc.customer_id
+                                                                                                  or tc.tree_ids like acc.customer_id||',%' or tc.tree_ids like acc.customer_id or tc.id = acc.customer_id)
+INNER JOIN t_storage s ON s.customer_id = tc.id and s.status = 1 and s.storage_property_id in ('0'
+                                                                                                           {% for property_id in property_ids %}
+                                                                                                               ,'{{property_id}}'
+                                                                                                           {% endfor %}
+                                                                                                        )
+{% if whether %}
+AND (s.storage_type_id in (SELECT storage_type_id FROM t_acct_role_storage_type_priv WHERE account_id = ?account_id AND status= 1)
+ or (SELECT id FROM t_role WHERE role_code='cst_super_admin') IN (SELECT role_id FROM t_acct_role WHERE account_id = ?account_id)
+ )
+{% endif%}
+WHERE acct.id = ?account_id
+
+[[query.storage.by.custs]]
+select * from t_storage
+where customer_id in ('0'
+   {% for customer_id in customer_ids %}
+       ,'{{customer_id}}'
+   {% endfor %}
+)
+
+[[query.storage.by.acct.property.list]]
+SELECT DISTINCT s.id storage_id,s.name storage_name FROM t_account acct
+INNER JOIN t_account_child_customer acc ON acc.account_id = acct.id
+INNER JOIN t_customer c ON c.leaf = 1 and c.status = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id)
+INNER JOIN t_storage s ON s.customer_id = c.id and s.status = 1
+WHERE acct.id = ?account_id
+{% if temp %}
+{% if property_ids != "" %}
+  and s.storage_property_id in ('0'
+       {% for property_id in property_ids %}
+         ,'{{property_id}}'
+       {% endfor %}
+)
+{% endif%}
+{% endif%}
+
+[[query.storage.by.storage.order.for.apply.list]]
+SELECT ts1.id storage_id,ts1.name storage_name FROM t_storage_order so
+INNER JOIN t_storage ts on ts.id=so.apply_storage_id
+INNER JOIN t_storage ts1 on ts1.customer_id = ts.customer_id and ts1.status = 1
+WHERE so.id=?storage_order_id
+
+[[query.jt.storage.by.storage.order.for.apply.list]]
+SELECT ts1.id storage_id,ts1.name storage_name FROM t_storage_order so
+INNER JOIN t_storage ts on ts.id=so.apply_storage_id
+INNER JOIN t_customer tc1 on tc1.id = ts.customer_id
+INNER JOIN t_customer tc2 on tc2.parent_customer_id = tc1.parent_customer_id
+INNER JOIN t_storage ts1 on ts1.customer_id = tc2.id and ts1.status = 1 and ts1.storage_property_id=?property_id
+WHERE so.id=?storage_order_id
+
+[[query.all.storage.by.property.list]]
+SELECT ts.id storage_id,ts.name storage_name,CASE WHEN ts1.customer_id=tc.id THEN 1 ELSE 2 END cnt FROM t_account_child_customer acc
+INNER JOIN t_customer tc ON  tc.status = 1 and (tc.tree_ids like '%,' || acc.customer_id ||',%' or tc.tree_ids like '%,'|| acc.customer_id
+         or tc.tree_ids like acc.customer_id||',%' or tc.tree_ids like acc.customer_id or tc.id = acc.customer_id)
+INNER JOIN t_storage ts ON ts.customer_id = tc.id AND ts.status = 1 AND ts.id != ?storage_id
+INNER JOIN t_storage ts1 ON ts1.id =?storage_id
+{% if temp != 0 %}
+  and ts.storage_property_id in ('0'
+                                  {% for property_id in property_ids %}
+                                      ,'{{property_id}}'
+                                  {% endfor %}
+                               )
+{% endif%}
+WHERE acc.account_id=?account_id ORDER BY cnt,ts.id
+
+
+
+[[query.storage.by.cus.acct.list]]
+SELECT s.id storage_id,
+   s.name storage_name
+FROM t_storage s
+where  s.status = 1
+{% if temp != 0 %}
+  and s.storage_property_id in ('0'
+                                  {% for property_id in property_ids %}
+                                      ,'{{property_id}}'
+                                  {% endfor %}
+                               )
+{% endif%}
+{% if whether %}
+AND (s.storage_type_id in (SELECT storage_type_id FROM t_acct_role_storage_type_priv WHERE account_id = ?account_id AND status= 1)
+ or (SELECT id FROM t_role WHERE role_code='cst_super_admin') IN (SELECT role_id FROM t_acct_role WHERE account_id = ?account_id)
+ )
+{% endif%}
+
+
+[[query.storage.by.cus.acct]]
+SELECT s.id storage_id,
+   s.name storage_name
+FROM t_storage s
+where s.customer_id = ?customer_id and s.status = 1
+{% if temp != 0 %}
+  and s.storage_property_id in ('0'
+                                  {% for property_id in property_ids %}
+                                      ,'{{property_id}}'
+                                  {% endfor %}
+                               )
+{% endif%}
+{% if whether %}
+AND (s.storage_type_id in (SELECT storage_type_id FROM t_acct_role_storage_type_priv WHERE account_id = ?account_id AND status= 1)
+ or (SELECT id FROM t_role WHERE role_code='cst_super_admin') IN (SELECT role_id FROM t_acct_role WHERE account_id = ?account_id)
+ )
+{% endif%}
+
+[[query.storage.type.list.list]]
+SELECT st.id,
+   st.name
+FROM t_storage_type st
+WHERE st.status = 1
+{% if keyword != "" %}
+    AND st.name ilike '%'||?keyword||'%'
+{% endif%}
+order by st.id
+
+[[select.storage.action.type.list]]
+select * from t_storage_action_type
+where 1=1
+{% if status != "" %}
+    AND status = ?status
+{% endif%}
+{% if condition != "" %}
+    AND condition = ?condition
+{% endif%}
+{% if type != "" %}
+    AND type = ?type
+{% endif%}
+order by cast(id as integer) desc

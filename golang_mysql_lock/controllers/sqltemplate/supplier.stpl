@@ -1,0 +1,413 @@
+[[get.supplier.list]]
+with t as (
+  select a.* from t_account a,t_acct_role ar,t_role r
+  where a.id = ar.account_id and ar.role_id = r.id and r.role_code = 'spl_admin' and r.account_type = 2
+)
+SELECT tmp.*,CASE  WHEN sgc.cnt  NOTNULL THEN   sgc.cnt  ELSE '0'  END goods_cnt FROM (
+    SELECT
+      s.id,
+      s.name,
+      s.supplier_cate_desc,
+      s.contact_name,
+      s.contact_phone,
+      t.id account_id,
+      t.login_name account_name,
+      p.name province_name,
+      c.name city_name,
+      d.name district_name,
+      s.create_time
+      FROM t_supplier s, t, t_province p, t_city c, t_district d
+    WHERE s.status = 1 and s.province_id = p.id AND s.city_id = c.id AND s.district_id = d.id AND s.id = t.supplier_id
+     {% if province_id!="" %}
+           and s.province_id = ?province_id
+     {% endif %}
+     {% if city_id!="" %}
+           and s.city_id = ?city_id
+     {% endif %}
+     {% if district_id!="" %}
+           and s.district_id = ?district_id
+     {% endif %}
+     {% if keyword!="" %}
+           and (s.name ilike '%'||?keyword||'%' or t.login_name ilike '%'||?keyword||'%')
+     {% endif %}
+     ) tmp
+LEFT OUTER JOIN (SELECT supplier_id,count(goods_id)cnt FROM t_supplier_goods_config WHERE status =1 GROUP BY supplier_id) sgc
+ON tmp.id = sgc.supplier_id
+ order by tmp.create_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[get.supplier.export.list]]
+with t as (
+  select a.* from t_account a,t_acct_role ar,t_role r
+  where a.id = ar.account_id and ar.role_id = r.id and r.role_code = 'spl_admin' and r.account_type = 2
+)
+SELECT
+  s.id,
+  s.name,
+  s.supplier_cate_desc,
+  s.contact_name,
+  s.contact_phone,
+  t.id account_id,
+  t.login_name account_name,
+  p.name province_name,
+  c.name city_name,
+  d.name district_name
+  FROM t_supplier s, t, t_province p, t_city c, t_district d
+WHERE s.status = 1 and s.province_id = p.id AND s.city_id = c.id AND s.district_id = d.id AND s.id = t.supplier_id
+ {% if province_id!="" %}
+       and s.province_id = ?province_id
+ {% endif %}
+ {% if city_id!="" %}
+       and s.city_id = ?city_id
+ {% endif %}
+ {% if district_id!="" %}
+       and s.district_id = ?district_id
+ {% endif %}
+ {% if keyword!="" %}
+       and (s.name ilike '%'||?keyword||'%' or t.login_name ilike '%'||?keyword||'%')
+ {% endif %}
+order by s.create_time desc
+
+[[get.supplier.cnt]]
+with t as (
+  select a.* from t_account a,t_acct_role ar,t_role r
+  where a.id = ar.account_id and ar.role_id = r.id and r.role_code = 'spl_admin' and r.account_type = 2
+)
+SELECT
+  count(1)
+  FROM t_supplier s, t, t_province p, t_city c, t_district d
+WHERE s.status = 1 and s.province_id = p.id AND s.city_id = c.id AND s.district_id = d.id AND s.id = t.supplier_id
+  {% if province_id!="" %}
+        and s.province_id = ?province_id
+  {% endif %}
+  {% if city_id!="" %}
+        and s.city_id = ?city_id
+  {% endif %}
+  {% if district_id!="" %}
+        and s.district_id = ?district_id
+  {% endif %}
+  {% if keyword!="" %}
+        and (s.name ilike '%'||?keyword||'%' or t.login_name ilike '%'||?keyword||'%')
+  {% endif %}
+
+[[show]]
+with t as (
+  select a.* from t_account a,t_acct_role ar,t_role r
+  where a.id = ar.account_id and ar.role_id = r.id and r.role_code = 'spl_admin' and r.account_type = 2
+)
+SELECT
+  s.id,
+  s.name,
+  s.province_id,
+  s.city_id,
+  s.district_id,
+  s.contact_name,
+  s.contact_phone,
+  s.memo,
+  s.status,
+  s.supplier_type,
+  s.is_joined,
+  a.login_name account_name,
+  a.id   account_id,
+  p.name province_name,
+  c.name city_name,
+  d.name district_name
+FROM t_supplier s, t a, t_province p, t_city c, t_district d
+WHERE s.province_id = p.id AND s.city_id = c.id AND s.district_id = d.id AND s.id = a.supplier_id and s.id = ?id
+
+[[show.supplier.cate.lv1]]
+SELECT
+  pc.id cate_lv1_id,
+  pc.name cate_lv1_name
+FROM t_product_category pc
+where  pc.status=1 and parent_id = '0'
+
+[[query.all.supplier.for.admin.list]]
+select id,name
+from t_supplier
+where status=1
+order by cast(id as integer) asc
+
+[[get.goods.by.goods.cnt]]
+SELECT
+count(1) cnt
+ FROM t_supplier_goods_config sgc
+  INNER JOIN t_goods g ON g.id = sgc.goods_id AND g.status = 1
+  INNER JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+INNER JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+INNER JOIN t_product pc3 ON pc3.id = g.prd_id
+WHERE sgc.status = 1 AND sgc.supplier_id = ?supplier_id
+{% if cate_lv1_id!="" %}
+     and g.cate_lv1_id = ?cate_lv1_id
+{% endif %}
+{% if cate_lv2_id!="" %}
+     and g.cate_lv2_id = ?cate_lv2_id
+{% endif %}
+{% if prd_id!="" %}
+     and g.prd_id = ?prd_id
+{% endif %}
+{% if keyword!="" %}
+     and g.name ilike '%'||?keyword||'%'
+{% endif %}
+
+[[get.goods.by.goods.list]]
+SELECT
+  g.cate_lv1_id,
+  g.cate_lv2_id,
+  g.prd_id,
+  g.id goods_id,
+  g.name goods_name,
+  g.unit,
+  pc1.name cate_lv1_name,
+  pc2.name cate_lv2_name,
+  pc3.name prd_name
+ FROM t_supplier_goods_config sgc
+  INNER JOIN t_goods g ON g.id = sgc.goods_id AND g.status = 1
+  INNER JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+INNER JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+INNER JOIN t_product pc3 ON pc3.id = g.prd_id
+WHERE sgc.status = 1 AND sgc.supplier_id = ?supplier_id
+{% if cate_lv1_id!="" %}
+     and g.cate_lv1_id = ?cate_lv1_id
+{% endif %}
+{% if cate_lv2_id!="" %}
+     and g.cate_lv2_id = ?cate_lv2_id
+{% endif %}
+{% if prd_id!="" %}
+     and g.prd_id = ?prd_id
+{% endif %}
+{% if keyword!="" %}
+     and g.name ilike '%'||?keyword||'%'
+{% endif %}
+  order by g.id    limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[get.supplier.by.order.again.district.cnt]]
+WITH tmp as (
+SELECT  ts.id||'--'||coalesce(sa.id,'0') supplier_id FROM t_order o
+INNER JOIN t_cust_price_config cpc on cpc.goods_id = o.goods_id and cpc.unit_id = o.unit_id and cpc.status = 1 and cpc.customer_id = o.customer_id
+INNER JOIN t_supplier ts on ts.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) and ts.status = 1
+left JOIN (
+              SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+              SELECT '0','','',1
+                    ) sa on sa.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2]) and sa.status = 1
+INNER JOIN t_supplier_goods_config sgc on sgc.goods_id = cpc.goods_id and sgc.status = 1 and sgc.supplier_id = ts.id
+WHERE o.id = ?order_id
+)
+SELECT count(1) cnt FROM tmp t
+INNER JOIN t_supplier s ON s.id = t.supplier_id and s.is_joined = 1
+{% if keyword!="" %}
+     and s.name ilike '%'||?keyword||'%'
+{% endif %}
+ {% if province_id!="" %}
+         and s.province_id = ?province_id
+  {% endif %}
+  {% if city_id!="" %}
+         and s.city_id = ?city_id
+  {% endif %}
+  {% if district_id!="" %}
+         and s.district_id = ?district_id
+  {% endif %}
+
+[[get.supplier.by.order.again.district.list]]
+WITH tmp as (
+SELECT  ts.id||'--'||coalesce(sa.id,'0') as id,ts.id supplier_id,sa.id supplier_alias_id FROM t_order o
+INNER JOIN t_cust_price_config cpc on cpc.goods_id = o.goods_id and cpc.unit_id = o.unit_id and cpc.status = 1 and cpc.customer_id = o.customer_id
+INNER JOIN t_supplier ts on ts.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) and ts.status = 1
+left JOIN (
+              SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+              SELECT '0','','',1
+                    ) sa on sa.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2]) and sa.status = 1
+INNER JOIN t_supplier_goods_config sgc on sgc.goods_id = cpc.goods_id and sgc.status = 1 and sgc.supplier_id = ts.id
+WHERE o.id = ?order_id
+)
+SELECT t.id, s.id supplier_id,case when t.supplier_alias_id ='0' then s.name else sa.supplier_alias_name end name,s.name supplier_name,p.name province_name,c.name city_name,d.name district_name FROM tmp t
+ INNER JOIN t_supplier s ON s.id = t.supplier_id and s.is_joined = 1
+ INNER JOIN t_province p ON p.id = s.province_id
+ INNER JOIN t_city c ON c.id =  s.city_id
+ INNER JOIN t_district d ON d.id = s.district_id
+ {% if keyword!="" %}
+      and s.name ilike '%'||?keyword||'%'
+ {% endif %}
+ {% if province_id!="" %}
+         and s.province_id = ?province_id
+  {% endif %}
+  {% if city_id!="" %}
+         and s.city_id = ?city_id
+  {% endif %}
+  {% if district_id!="" %}
+         and s.district_id = ?district_id
+  {% endif %}
+
+[[query.supplier.by.select.cnt]]
+with tmp as(
+SELECT s.id supplier_id,s.name supplier_name,sa.id supplier_alias_id,sa.supplier_alias_name FROM t_supplier s
+INNER JOIN  t_supplier_alias sa ON sa.supplier_id = s.id AND sa.status = 1
+UNION
+  SELECT s.id supplier_id,s.name,'0','' FROM t_supplier s
+)
+SELECT count(1) cnt FROM tmp t
+INNER JOIN t_supplier s on s.id = t.supplier_id
+INNER JOIN t_province p ON p.id = s.province_id
+INNER JOIN t_city c ON c.id = s.city_id
+INNER JOIN t_district d ON d.id = s.district_id
+WHERE s.status = 1
+  {% if supplier_type=="2" %}
+        and s.supplier_type = ?supplier_type
+  {% endif %}
+  {% if supplier_type =="1" %}
+        and s.supplier_type = ?supplier_type
+  {% endif %}
+  {% if province_id!="" %}
+        and s.province_id = ?province_id
+  {% endif %}
+  {% if city_id!="" %}
+        and s.city_id = ?city_id
+  {% endif %}
+  {% if district_id!="" %}
+        and s.district_id = ?district_id
+  {% endif %}
+  {% if keyword!="" %}
+        and s.name ilike '%'||?keyword||'%'
+  {% endif %}
+
+[[query.supplier.by.select.list]]
+with tmp as(
+SELECT s.id supplier_id,s.name supplier_name,sa.id supplier_alias_id,sa.supplier_alias_name FROM t_supplier s
+INNER JOIN  t_supplier_alias sa ON sa.supplier_id = s.id AND sa.status = 1
+UNION
+  SELECT s.id supplier_id,s.name,'0','' FROM t_supplier s
+)
+select   s.id ||'-'||coalesce(t.supplier_alias_id,'0') as id,
+         s.id supplier_id,
+             CASE WHEN t.supplier_alias_id ='0' THEN s.name ELSE t.supplier_alias_name END supplier_name,
+              s.contact_name,
+              s.contact_phone,
+              p.name province_name,
+              c.name city_name,
+              d.name district_name,
+             t.supplier_alias_id from tmp t
+inner join t_supplier s on s.id = t.supplier_id
+INNER JOIN t_province p ON p.id = s.province_id
+INNER JOIN t_city c ON c.id = s.city_id
+INNER JOIN t_district d ON d.id = s.district_id
+WHERE s.status = 1
+  {% if supplier_type=="2" %}
+        and s.supplier_type = ?supplier_type
+  {% endif %}
+  {% if supplier_type =="1" %}
+        and s.supplier_type = ?supplier_type
+  {% endif %}
+  {% if province_id!="" %}
+        and s.province_id = ?province_id
+  {% endif %}
+  {% if city_id!="" %}
+        and s.city_id = ?city_id
+  {% endif %}
+  {% if district_id!="" %}
+        and s.district_id = ?district_id
+  {% endif %}
+  {% if keyword!="" %}
+        and s.name ilike '%'||?keyword||'%'
+  {% endif %}
+  ORDER BY cast(s.id as integer),cast(t.supplier_alias_id as integer)
+
+[[query.supplier.by.purchase.order.cnt]]
+WITH tmp AS (
+	SELECT  DISTINCT s.id supplier_id,s.name supplier_name,coalesce(sa.id,'0') supplier_alias_id,sa.supplier_alias_name  FROM t_account_child_customer acc
+INNER JOIN t_customer c1 ON  c1.status = 1 AND c1.leaf='1' AND (c1.id = acc.customer_id OR c1.tree_ids LIKE '%,'||acc.customer_id||',%'
+	OR c1.tree_ids LIKE '%,'||acc.customer_id OR c1.tree_ids LIKE acc.customer_id||',%' OR c1.tree_ids LIKE acc.customer_id)
+INNER JOIN t_cust_price_config cpc ON cpc.customer_id = c1.id AND cpc.status = 1
+INNER JOIN t_supplier s ON s.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) AND s.status = 1
+LEFT JOIN  (
+                           SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+                           SELECT '0','','',1
+                                   ) sa ON sa.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2]) AND sa.status = 1
+WHERE acc.account_id=?account_id
+  {% if is_joined !="0" && is_joined !=""  %}
+         and s.is_joined = ?is_joined
+  {% endif %}
+)
+SELECT count(1) cnt
+FROM tmp t
+
+[[query.supplier.by.purchase.order.list]]
+WITH tmp AS (
+	SELECT  DISTINCT s.id supplier_id,s.name supplier_name,coalesce(sa.id,'0')  supplier_alias_id,sa.supplier_alias_name  FROM t_account_child_customer acc
+INNER JOIN t_customer c1 ON  c1.status = 1 AND c1.leaf='1' AND (c1.id = acc.customer_id OR c1.tree_ids LIKE '%,'||acc.customer_id||',%'
+	OR c1.tree_ids LIKE '%,'||acc.customer_id OR c1.tree_ids LIKE acc.customer_id||',%' OR c1.tree_ids LIKE acc.customer_id)
+INNER JOIN t_cust_price_config cpc ON cpc.customer_id = c1.id AND cpc.status = 1
+INNER JOIN t_supplier s ON s.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][1:1]) AND s.status = 1
+LEFT JOIN  (
+                           SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+                           SELECT '0','','',1
+                                   ) sa ON sa.id = ANY(cpc.supplier_ids[1:array_length(cpc.supplier_ids,1)][2:2]) AND sa.status = 1
+WHERE acc.account_id=?account_id
+{% if is_joined !="0" && is_joined !="" %}
+  and s.is_joined = ?is_joined
+{% endif %}
+)
+SELECT t.supplier_id,CASE WHEN t.supplier_alias_id ISNULL or t.supplier_alias_id ='0' THEN t.supplier_name ELSE t.supplier_alias_name END supplier_name,
+t.supplier_alias_id,t.supplier_id||'--'||coalesce(t.supplier_alias_id,'0') as id
+FROM tmp t
+ order by cast(t.supplier_id as integer) desc
+
+[[query.supplier.by.goods.regenerant.cnt]]
+with tmp as(
+SELECT s.id supplier_id,s.name supplier_name,sa.id supplier_alias_id,sa.supplier_alias_name FROM t_supplier s
+INNER JOIN  t_supplier_alias sa ON sa.supplier_id = s.id AND sa.status = 1
+UNION
+  SELECT s.id supplier_id,s.name,'0','' FROM t_supplier s
+)
+select count(1) cnt from tmp
+
+
+[[query.supplier.by.goods.regenerant.list]]
+with tmp as(
+SELECT s.id supplier_id,s.name supplier_name,sa.id supplier_alias_id,sa.supplier_alias_name FROM t_supplier s
+INNER JOIN  t_supplier_alias sa ON sa.supplier_id = s.id AND sa.status = 1
+UNION
+  SELECT s.id supplier_id,s.name,'0','' FROM t_supplier s
+)
+select case when supplier_alias_id = '0' then supplier_name||'(回收商)' else supplier_alias_name||'(回收商)' end supplier_name,
+ supplier_id||'--'||supplier_alias_id as id,supplier_id
+ from tmp order by cast(supplier_id as integer) desc,cast(supplier_alias_id as integer)
+
+[[query.supplier.by.shopping.list]]
+SELECT DISTINCT ts.id supplier_id,case when sa.id isnull then ts.name else sa.supplier_alias_name end supplier_name,
+ts.id||'--'||coalesce(sa.id,'0') as id
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod on sod.storage_order_id = so.id and sod.status = 1
+INNER JOIN t_storage s on s.id = so.to_storage_id and  s.customer_id in  ( select c.id from t_account_child_customer acc
+                                                                                    inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                                   where account_id = ?account_id)
+INNER JOIN t_supplier ts on ts.id = from_supplier_id
+left join t_supplier_alias sa on sa.id = so.from_supplier_alias_id
+
+[[query.supplier.by.storage.list]]
+select DISTINCT s.id||'--'||coalesce(sa.id,'0') as id,coalesce(sa.id,'0') as supplier_alias_id,s.id supplier_id,case when sa.id ='0' then s.name else sa.supplier_alias_name end  supplier_name from t_storage_order so
+inner join t_storage_order_detail sod  on so.id = sod.storage_order_id AND sod.type = ?goods_type and sod.status = 1
+inner join t_supplier s on s.id = so.from_supplier_id
+LEFT JOIN  (SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+                                              SELECT '0','','',1) sa on sa.id = so.from_supplier_alias_id
+{% if type == 2 %}
+inner join t_storage ts ON ts.id = so.apply_storage_id and ts.customer_id in  ( select c.id from t_account_child_customer acc
+                             inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                            where account_id = ?account_id)
+
+{% endif %}
+where so.storage_action_type_id = '8'
+ {% if type == 1 %}
+ AND so.storage_order_status = 14 and so.apply_storage_id = ?storage_id
+ {% endif %}
+
+[[select.by.supplier.goods.config.list]]
+WITH tmp as(
+  SELECT sgc.supplier_id FROM t_supplier_goods_config sgc
+WHERE sgc.goods_id = ?goods_id AND sgc.status = 1
+)
+SELECT s.id||'--'||sa.supplier_alias_id id,sa.supplier_alias_id,s.id supplier_id,CASE WHEN sa.supplier_alias_id = '0' THEN s.name ELSE sa.supplier_alias_name END supplier_name FROM tmp t
+INNER JOIN t_supplier s ON s.id = t.supplier_id AND s.status = 1
+INNER JOIN (SELECT s.id supplier_id,s.name supplier_name,sa.id supplier_alias_id,sa.supplier_alias_name FROM t_supplier s
+INNER JOIN  t_supplier_alias sa ON sa.supplier_id = s.id AND sa.status = 1
+UNION
+  SELECT s.id supplier_id,s.name,'0','' FROM t_supplier s) sa ON sa.supplier_id = s.id
+ORDER BY id

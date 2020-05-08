@@ -1,0 +1,46 @@
+package main
+
+//Éú³É¶þÎ¬Âë
+/*func main() {
+	err := qrcode.WriteFile("http://wjw/sss", qrcode.Medium, 256, "C:\\Users\\Administrator\\Desktopqr.png")
+	if err != nil {
+		fmt.Println("write error")
+	}
+}*/
+
+
+import (
+"fmt"
+"os"
+"github.com/tuotoo/qrcode"
+)
+
+//»ñÈ¡¶þÎ¬Âë
+func main() {
+
+	fi, err := os.Open("C:\\Users\\Administrator\\Desktopqr.png")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	defer fi.Close()
+	qrmatrix, err := qrcode.Decode(fi)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	fmt.Println(qrmatrix.Content)
+	
+	/*
+	//直接返回验证码方式，无需存储
+	text := ctx.URLParam("text")
+	//需要设计头部为image/png 在输出,来自源码的提示
+	ctx.Header("Content-Type", "image/png")
+	var png []byte
+	png, _ = qrcode.Encode(text, qrcode.Medium, 256)
+	ctx.Write(png)
+	*/
+	
+}
+
+

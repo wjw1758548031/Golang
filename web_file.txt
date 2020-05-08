@@ -1,0 +1,41 @@
+//前端代码
+/*<form id="uploadForm" method="POST" encType="multipart/form-data" action="http://localhost:4011/api/v1/file">
+
+<p>Golang upload</p>
+
+<input type="FILE" id="file" name="file"/>
+
+<input type="SUBMIT" value="upload"></input>
+</form>*/
+
+
+//测试用
+func File(ctx iris.Context) {
+	//这里是请求参数request
+	file, _, err := ctx.FormFile("file")
+	if err != nil {
+		fmt.Println("FormFile: ", err.Error())
+		return
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Println("Close: ", err.Error())
+			return
+		}
+	}()
+	//文件转换成byte[]用作传送或者弄到桌面
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		fmt.Println("ReadAll: ", err.Error())
+		return
+	}
+
+	//写到指定目录里，如果是视频则写mp4或者相应的格式就好
+	err = ioutil.WriteFile("D:/wenjianliu.txt", bytes, 0644);if err!= nil{
+		fmt.Println("WriteFile: ", err.Error())
+	}
+
+	//这里是返回repos  返回给前端
+	ctx.Write(bytes)
+
+}

@@ -1,0 +1,49 @@
+[[query.carry.over.log.by.account.cnt]]
+select count(*)cnt
+from t_carry_over_log col
+  left join t_account a on col.create_account_id = a.id
+where col.customer_id in (select customer_id from t_account_child_customer where account_id = ?account_id)
+{% if customer_id != "" %}
+    AND col.customer_id = ?customer_id
+{% endif%}
+{% if carry_over_month != "" %}
+    AND to_char(col.create_time,'YYYY-MM') = ?carry_over_month
+{% endif%}
+
+
+[[query.carry.over.log.by.account.list]]
+select col.*,a.name create_account_name ,a.login_name
+from t_carry_over_log col
+  left join t_account a on col.create_account_id = a.id
+where col .customer_id in (select customer_id from t_account_child_customer where account_id = ?account_id)
+{% if customer_id != "" %}
+    AND col.customer_id = ?customer_id
+{% endif%}
+{% if carry_over_month != "" %}
+    AND to_char(col.create_time,'YYYY-MM') = ?carry_over_month
+{% endif%}
+order by col.create_time desc
+limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.carry.over.month.list.by.account]]
+select DISTINCT to_char(create_time,'YYYY-MM') carry_over_month
+from t_carry_over_log
+where customer_id in (select customer_id from t_account_child_customer where account_id = ?account_id)
+order by to_char(create_time,'YYYY-MM') desc
+
+[[query.storage.order.month.list.by.account]]
+with tem as (
+  select * from t_storage where customer_id in (
+    select id from t_customer
+    where id in (select customer_id from t_account_child_customer where account_id = ?account_id)
+          {% if customer_id != "" %}
+             and id = ?customer_id
+          {% endif%}
+           and status = 1
+  ) and status = 1
+)
+select DISTINCT to_char(finish_time,'YYYY-MM') storage_order_month from t_storage_order where ((
+  to_storage_id in (select id from tem) and is_to_carry_over = false
+) or (from_storage_id in (select id from tem) and is_from_carry_over = false))
+and storage_order_status = 11 and finish_time NOTNULL and to_char(finish_time,'YYYY-MM') != to_char(now(),'YYYY-MM')
+  order by to_char(finish_time,'YYYY-MM') desc

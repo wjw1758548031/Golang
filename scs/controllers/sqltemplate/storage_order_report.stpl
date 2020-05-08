@@ -1,0 +1,2525 @@
+[[query.order.in.storage.cnt]]
+SELECT count(1) cnt FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage ts ON ts.id = so.to_storage_id AND ts.customer_id in  (select c.id from t_account_child_customer acc
+                              inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                             where account_id = ?account_id)
+INNER JOIN t_goods g ON g.id = sod.goods_id
+WHERE so.storage_order_status !=13 and so.is_to_rcw = false
+      and ( so.storage_action_type_id ='4' or so.storage_action_type_id in (SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1) )
+ {% if !start_put_in_time.IsZero() %}
+    and so.IN_TIME  >= to_timestamp(?start_put_in_time,'YYYY-MM-DD hh24:mi:ss')
+{% endif%}
+{% if !end_put_in_time.IsZero() %}
+    and so.IN_TIME  <= to_timestamp(?end_put_in_time,'YYYY-MM-DD hh24:mi:ss')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+{% endif%}
+{% if cate_lv1_id!="" %}
+    and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+    and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+    and g.prd_id=?prd_id
+{% endif%}
+{% if to_storage_action_typeId=="1" %}
+    and so.storage_action_type_id in(SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1)
+{% endif%}
+{% if to_storage_action_typeId=="2" %}
+    and so.storage_action_type_id= '4'
+{% endif%}
+{% if apply_storage_id!="" %}
+    and (select id from T_CUSTOMER  where id = (select CUSTOMER_ID from T_STORAGE where ID=so.apply_storage_id)) = ?apply_storage_id
+{% endif%}
+{% if to_customer_id!="" %}
+    and (select id from T_STORAGE where ID=so.TO_STORAGE_ID) = ?to_customer_id
+{% endif%}
+{% if from_supplier_id!="" %}
+    and (select id from T_SUPPLIER  where ID=so.FROM_SUPPLIER_ID) = ?from_supplier_id
+{% endif%}
+{% if  keyword!="" %}
+    and  (so.storage_order_no ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' or g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%')
+{% endif%}
+
+[[query.order.in.storage.list]]
+with tmp as(
+SELECT
+so.id storage_order_id,so.storage_order_no,so.storage_order_sub_no,so.storage_action_type_id,so.in_time,
+sat.name storage_action_type_desc,
+ts.name storage_name,case when sa.id ='0' then s.name else sa.supplier_alias_name end supplier_name,
+c1.name customer_name,c2.name parent_customer_name,
+g.goods_code,g.name goods_name,g.id goods_id,
+tcg.name category_name,tsf.name specification_name,tc1.name apply_customer_name,
+sod.price,sod.memo detail_memo,u1.name unit_name,
+sod.in_amount+COALESCE( (select sum(tsod.in_amount) from t_rcw_log rl
+inner join t_storage_order_detail tsod on tsod.storage_order_id = rl.update_storage_order_id and tsod.status = 1
+where rl.storage_order_id = so.id
+),0) in_amount
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage ts ON ts.id = so.to_storage_id AND ts.customer_id in  (select c.id from t_account_child_customer acc
+                              inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                             where account_id = ?account_id)
+INNER JOIN t_customer c1 ON c1.id = ts.customer_id
+LEFT  JOIN t_customer c2 ON c2.id = c1.parent_customer_id
+INNER JOIN t_goods g ON g.id = sod.goods_id
+LEFT  JOIN t_supplier s ON s.id = so.from_supplier_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_storage_action_type sat on sat.id = so.storage_action_type_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+LEFT JOIN t_storage ts1 on ts1.id = so.apply_storage_id
+LEFT JOIN t_customer tc1 on tc1.id = ts1.customer_id
+LEFT JOIN (
+              SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+              SELECT '0','','',1
+                    )  sa on sa.id = so.from_supplier_alias_id
+WHERE so.storage_order_status !=13 and so.is_to_rcw = false
+      and ( so.storage_action_type_id ='4' or so.storage_action_type_id in (SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1) )
+ {% if !start_put_in_time.IsZero() %}
+    and so.IN_TIME  >= to_timestamp(?start_put_in_time,'YYYY-MM-DD hh24:mi:ss')
+{% endif%}
+{% if !end_put_in_time.IsZero() %}
+    and so.IN_TIME  <= to_timestamp(?end_put_in_time,'YYYY-MM-DD hh24:mi:ss')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+{% endif%}
+{% if cate_lv1_id!="" %}
+    and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+    and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+    and g.prd_id=?prd_id
+{% endif%}
+{% if to_storage_action_typeId=="1" %}
+    and so.storage_action_type_id in(SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1)
+{% endif%}
+{% if to_storage_action_typeId=="2" %}
+    and so.storage_action_type_id= '4'
+{% endif%}
+{% if apply_storage_id!="" %}
+    and (select id from T_CUSTOMER  where id = (select CUSTOMER_ID from T_STORAGE where ID=so.apply_storage_id)) = ?apply_storage_id
+{% endif%}
+{% if to_customer_id!="" %}
+    and (select id from T_STORAGE where ID=so.TO_STORAGE_ID) = ?to_customer_id
+{% endif%}
+{% if from_supplier_id!="" %}
+    and (select id from T_SUPPLIER  where ID=so.FROM_SUPPLIER_ID) = ?from_supplier_id
+{% endif%}
+{% if  keyword!="" %}
+    and  (so.storage_order_no ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' or g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%')
+{% endif%}
+order by so.in_time desc,cast(so.id as integer) desc
+limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select t.*,t.in_amount * t.price as in_total_price from tmp t
+order by t.in_time desc,cast(t.storage_order_id as integer) desc
+
+
+[[query.shopping.goods.for.customer.cnt]]
+SELECT count(1) cnt FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage ts ON ts.id = so.to_storage_id
+LEFT JOIN t_customer c1 on c1.id = ts.customer_id
+INNER JOIN t_goods g ON g.id = sod.goods_id
+WHERE so.storage_order_status !=13 and so.is_to_rcw = false
+      and ( so.storage_action_type_id ='4' or so.storage_action_type_id in (SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1) )
+ {% if !start_put_in_time.IsZero() %}
+    and so.IN_TIME  >= to_timestamp(?start_put_in_time,'YYYY-MM-DD hh24:mi:ss')
+{% endif%}
+{% if !end_put_in_time.IsZero() %}
+    and so.IN_TIME  <= to_timestamp(?end_put_in_time,'YYYY-MM-DD hh24:mi:ss')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+{% endif%}
+{% if customer_id!="" %}
+    and c1.id=?customer_id
+{% endif%}
+{% if parent_customer_id!="" %}
+    and c1.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if cate_lv1_id!="" %}
+    and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+    and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+    and g.prd_id=?prd_id
+{% endif%}
+{% if to_storage_action_typeId=="1" %}
+    and so.storage_action_type_id in(SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1)
+{% endif%}
+{% if to_storage_action_typeId=="2" %}
+    and so.storage_action_type_id= '4'
+{% endif%}
+{% if apply_storage_id!="" %}
+   and ts.id = ?apply_storage_id
+{% endif%}
+{% if from_supplier_id!="" %}
+    and (select id from T_SUPPLIER  where ID=so.FROM_SUPPLIER_ID) = ?from_supplier_id
+{% endif%}
+{% if  keyword!="" %}
+    and  (g.goods_code ilike '%' || ?keyword || '%' or g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%')
+{% endif%}
+
+[[query.shopping.goods.for.customer.list]]
+with tmp as(
+SELECT
+so.id storage_order_id,so.storage_order_no,so.storage_order_sub_no,so.storage_action_type_id,so.in_time,
+sat.name storage_action_type_desc,
+ts.name storage_name,s.name supplier_name,
+c1.name customer_name,c2.name parent_customer_name,
+g.goods_code,g.name goods_name,g.id goods_id,
+tcg.name category_name,tsf.name specification_name,tc1.name apply_customer_name,
+sod.price,sod.memo detail_memo,u1.name unit_name,
+sod.in_amount+COALESCE( (select sum(tsod.in_amount) from t_rcw_log rl
+inner join t_storage_order_detail tsod on tsod.storage_order_id = rl.update_storage_order_id and tsod.status = 1
+where rl.storage_order_id = so.id
+),0) in_amount
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage ts ON ts.id = so.to_storage_id
+INNER JOIN t_customer c1 ON c1.id = ts.customer_id
+LEFT  JOIN t_customer c2 ON c2.id = c1.parent_customer_id
+INNER JOIN t_goods g ON g.id = sod.goods_id
+LEFT  JOIN t_supplier s ON s.id = so.from_supplier_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_storage_action_type sat on sat.id = so.storage_action_type_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+LEFT JOIN t_storage ts1 on ts1.id = so.apply_storage_id
+LEFT JOIN t_customer tc1 on tc1.id = ts1.customer_id
+WHERE so.storage_order_status !=13 and so.is_to_rcw = false
+      and ( so.storage_action_type_id ='4' or so.storage_action_type_id in (SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1) )
+ {% if !start_put_in_time.IsZero() %}
+    and so.IN_TIME  >= to_timestamp(?start_put_in_time,'YYYY-MM-DD hh24:mi:ss')
+{% endif%}
+{% if !end_put_in_time.IsZero() %}
+    and so.IN_TIME  <= to_timestamp(?end_put_in_time,'YYYY-MM-DD hh24:mi:ss')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+{% endif%}
+{% if customer_id!="" %}
+    and c1.id=?customer_id
+{% endif%}
+{% if parent_customer_id!="" %}
+    and c1.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if cate_lv1_id!="" %}
+    and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+    and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+    and g.prd_id=?prd_id
+{% endif%}
+{% if to_storage_action_typeId=="1" %}
+    and so.storage_action_type_id in(SELECT id FROM t_storage_action_type WHERE condition = 2 AND type=3 AND status =1)
+{% endif%}
+{% if to_storage_action_typeId=="2" %}
+    and so.storage_action_type_id= '4'
+{% endif%}
+{% if apply_storage_id!="" %}
+    and ts.id = ?apply_storage_id
+{% endif%}
+{% if from_supplier_id!="" %}
+    and (select id from T_SUPPLIER  where ID=so.FROM_SUPPLIER_ID) = ?from_supplier_id
+{% endif%}
+{% if  keyword!="" %}
+    and  (g.goods_code ilike '%' || ?keyword || '%' or g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%')
+{% endif%}
+order by so.in_time desc,cast(so.id as integer) desc
+limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select t.*,t.in_amount * t.price as in_total_price from tmp t
+order by t.in_time desc,cast(t.storage_order_id as integer) desc
+
+[[query.sale.goods.for.customer.cnt]]
+WITH tmp as(
+  SELECT
+    so.from_storage_id,
+    sod.goods_id,
+    sod.unit_id,
+  sum(sod.out_amount) total_out_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')  and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY so.from_storage_id,sod.goods_id,sod.unit_id
+)
+SELECT
+count(1) cnt
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+INNER JOIN t_storage s ON s.id = t.from_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+where 1=1
+{% if keyword!="" %}
+and (g.name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%')
+{% endif%}
+
+[[query.sale.goods.for.customer.list]]
+WITH tmp as(
+  SELECT
+    so.from_storage_id,
+    sod.goods_id,
+    sod.unit_id,
+  sum(sod.out_amount) total_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')  and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY so.from_storage_id,sod.goods_id,sod.unit_id
+)
+SELECT
+  t.* ,
+  ROW_NUMBER() over(ORDER BY cast(t.from_storage_id as integer),cast(t.goods_id as integer) ) row_num,
+  g.name goods_name,
+  g.goods_code,
+  g.unit,
+  c1.name from_parent_customer_name,
+  c.name from_customer_name,
+  s.name from_storage_name,
+  pc1.name cate_lv1_name,
+  pc2.name cate_lv2_name,
+  p.name prd_name,
+  tcg.name category_name,
+  tsf.name specification_name,
+  g.main_pic_url,
+  u1.name unit_name
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+INNER JOIN t_storage s ON s.id = t.from_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id
+INNER JOIN t_customer c1 ON c1.id = c.parent_customer_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+LEFT JOIN t_category tcg on tcg.id = g.category_id
+LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+LEFT JOIN t_unit u1 on u1.id = t.unit_id
+{% if keyword!="" %}
+and (g.name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%')
+{% endif%}
+ORDER BY cast(t.from_storage_id as integer),cast(t.goods_id as integer)  limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.sale.goods.for.goods.cnt]]
+WITH tmp as(
+  SELECT
+    sod.goods_id,
+     sod.unit_id,
+  sum(sod.out_amount) total_out_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')  and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY sod.goods_id,sod.unit_id
+)
+SELECT
+count(1) cnt
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+where 1=1
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if keyword!="" %}
+and g.name ilike '%'||?keyword||'%'
+{% endif%}
+
+[[query.sale.goods.for.goods.list]]
+WITH tmp as(
+  SELECT
+    sod.unit_id,
+    sod.goods_id,
+  sum(sod.out_amount) total_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')  and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY sod.goods_id,sod.unit_id
+)
+SELECT
+  t.* ,
+  ROW_NUMBER() over(ORDER BY cast(t.goods_id as integer) ) row_num,
+  g.name goods_name,
+  g.goods_code,
+  g.unit,
+  pc1.name cate_lv1_name,
+  pc2.name cate_lv2_name,
+  p.name prd_name,
+  g.main_pic_url,
+  tcg.name category_name,
+  tsf.name specification_name,
+  g.spec_scaling,
+  u1.name unit_name
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+LEFT JOIN t_category tcg on tcg.id = g.category_id
+LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+LEFT JOIN t_unit u1 on u1.id = t.unit_id
+where 1=1
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if keyword!="" %}
+and g.name ilike '%'||?keyword||'%'
+{% endif%}
+ORDER BY cast(t.goods_id as integer) limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.goods.timely.storage.order.stock.cnt]]
+WITH tmp as(
+   SELECT t.goods_id,
+        t.storage_id,
+        t.unit_id,
+        sum(used_price) as used_price,
+        sum(used_amount) as used_amount,
+        sum(frozen_price) as frozen_price,
+        sum(frozen_amount)as frozen_amount
+        FROM (
+    SELECT sum(sod.price * sods.not_used_amount)as used_price,
+                    sum(sods.not_used_amount) as used_amount ,
+                    sods.goods_id,s.id storage_id,0 as frozen_price,0 as frozen_amount,sods.unit_id
+                 FROM t_storage s
+INNER JOIN t_storage_order_detail_stock sods ON s.id = sods.storage_id
+INNER JOIN t_storage_order_detail sod ON sods.storage_order_detail_id = sod.id AND sod.type = 1 AND sod.status = 1 and sod.unit_id = sods.unit_id
+INNER JOIN t_storage_order so ON sod.storage_order_id = so.id
+WHERE 1=1
+   {% if storage_id!="" %}
+           and s.id = ?storage_id
+          {% endif%}
+     {% if !start_time.IsZero() %}
+     and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+     {% endif%}
+     {% if !end_time.IsZero() %}
+     and so.in_time<=to_date(?end_time,'YYYY-MM-DD')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+     {% endif%}
+ GROUP BY  s.id,sods.goods_id,sods.unit_id
+UNION
+ SELECT  0 as used_price,0 as used_amount,
+         sod.goods_id,s.id storage_id,sum(sod.price * sod.out_amount)as frozen_price,
+         sum(sod.out_amount) as frozen_amount,sod.unit_id
+      from t_storage s
+INNER JOIN t_storage_order so ON so.from_storage_id=s.id AND so.storage_order_status = 8
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id  AND sod.type = 1 AND sod.status = 1
+WHERE 1=1
+   {% if storage_id!="" %}
+           and s.id = ?storage_id
+          {% endif%}
+    {% if !start_time.IsZero() %}
+    and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_time.IsZero() %}
+    and so.in_time<=to_date(?end_time,'YYYY-MM-DD')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+    {% endif%}
+ GROUP BY s.id, sod.goods_id,sod.unit_id
+) t   GROUP BY t.storage_id, t.goods_id,t.unit_id
+)
+SELECT count(1) cnt from tmp t
+   INNER JOIN t_goods g ON t.goods_id = g.id
+       INNER JOIN t_storage s ON t.storage_id = s.id
+          LEFT JOIN t_customer c ON c.id = s.customer_id
+    WHERE 1= 1
+     {% if customer_id!="" %}
+       and s.customer_id = ?customer_id
+   {% endif%}
+    {% if keyword!="" %}
+      and (g.name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or CnFirstChar(c.name) ilike '%'||?keyword||'%')
+     {% endif%}
+
+[[query.goods.timely.storage.order.stock.list]]
+WITH tmp as(
+   SELECT t.goods_id,
+        t.storage_id,
+        t.unit_id,
+        sum(used_price) as used_price,
+        sum(used_amount) as used_amount,
+        sum(frozen_price) as frozen_price,
+        sum(frozen_amount)as frozen_amount
+        FROM (
+    SELECT sum(sod.price * sods.not_used_amount)as used_price,
+                    sum(sods.not_used_amount) as used_amount ,
+                    sods.goods_id,s.id storage_id,0 as frozen_price,0 as frozen_amount,sods.unit_id
+                 FROM t_storage s
+INNER JOIN t_storage_order_detail_stock sods ON s.id = sods.storage_id
+INNER JOIN t_storage_order_detail sod ON sods.storage_order_detail_id = sod.id AND sod.type = 1 AND sod.status = 1 and sods.unit_id = sod.unit_id
+INNER JOIN t_storage_order so ON sod.storage_order_id = so.id
+WHERE 1=1
+    {% if storage_id!="" %}
+     and s.id = ?storage_id
+    {% endif%}
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_time.IsZero() %}
+   and so.in_time<=to_date(?end_time,'YYYY-MM-DD') and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+   {% endif%}
+ GROUP BY  s.id,sods.goods_id,sods.unit_id
+UNION
+ SELECT  0 as used_price,0 as used_amount,
+         sod.goods_id,s.id storage_id,sum(sod.price * sod.out_amount)as frozen_price,
+         sum(sod.out_amount) as frozen_amount,sod.unit_id
+      from t_storage s
+INNER JOIN t_storage_order so ON so.from_storage_id=s.id AND so.storage_order_status = 8
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id  AND sod.type = 1 AND sod.status = 1
+WHERE 1=1
+    {% if storage_id!="" %}
+     and s.id = ?storage_id
+    {% endif%}
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_time.IsZero() %}
+   and so.in_time<=to_date(?end_time,'YYYY-MM-DD') and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+   {% endif%}
+ GROUP BY s.id, sod.goods_id,sod.unit_id
+) t   GROUP BY t.storage_id, t.goods_id,t.unit_id
+)
+SELECT t.*,
+    g.goods_code,
+    g.id goods_id,
+    (used_price+frozen_price) as total_price,
+    (used_amount+frozen_amount) as total_amount,
+  CASE WHEN used_amount+frozen_amount = 0 THEN  0 ELSE round((used_price+frozen_price)/(used_amount+frozen_amount),4)  END unit_price,
+    g.name goods_name,
+    pc1.name cate_lv1_name,
+    pc2.name cate_lv2_name,
+    p.name prd_name,
+    g.unit,
+    tcg.name category_name,
+    tsf.name specification_name,
+    s.name storage_name,
+    c.id customer_id,
+    c.name customer_name,
+    c1.id parent_customer_id,
+    c1.name parent_customer_name,
+    u1.name unit_name
+   FROM tmp t
+       INNER JOIN t_goods g ON t.goods_id = g.id
+       LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+       LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+       LEFT JOIN t_product p ON p.id = g.prd_id
+        INNER JOIN t_storage s ON t.storage_id = s.id
+       LEFT JOIN t_customer c ON c.id = s.customer_id
+       LEFT JOIN t_customer c1 ON c1.id = c.parent_customer_id
+       LEFT JOIN t_category tcg on tcg.id = g.category_id
+       LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+         LEFT JOIN t_unit u1 on u1.id = t.unit_id
+       WHERE 1= 1
+      {% if customer_id!="" %}
+        and s.customer_id = ?customer_id
+    {% endif%}
+    {% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%' or CnFirstChar(g.name) ilike '%'||?keyword||'%' or CnFirstChar(c.name) ilike '%'||?keyword||'%' )
+   {% endif%}
+   ORDER BY cast(t.storage_id as integer),cast(t.goods_id as integer)  limit ?page_size offset (?page_num - 1) * ?page_size
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[[query.sale.goods.for.customer.by.cus.cnt]]
+WITH tmp as(
+  SELECT
+    so.from_storage_id,
+    sod.goods_id,
+    sod.unit_id,
+  sum(sod.out_amount) total_out_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')   and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY so.from_storage_id,sod.goods_id,sod.unit_id
+)
+SELECT
+count(1) cnt
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+INNER JOIN t_storage s ON s.id = t.from_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+where 1=1
+{% if from_storage_id!="" %}
+          and t.from_storage_id=?from_storage_id
+          {% endif%}
+{% if customer_id!="" %}
+and s.customer_id=?customer_id
+{% endif%}
+{% if parent_customer_id!="" %}
+and c.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if keyword!="" %}
+     and  (g.name ilike '%' || ?keyword || '%'  or g.goods_code ilike '%' || ?keyword || '%'
+     or CnFirstChar(g.name) ilike '%' || ?keyword || '%')
+{% endif%}
+
+[[query.sale.goods.for.customer.by.cus.list]]
+WITH tmp as(
+  SELECT
+    so.from_storage_id,
+    sod.goods_id,
+    sod.unit_id,
+  sum(sod.out_amount) total_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                              inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                             where account_id = ?account_id)
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')  and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY so.from_storage_id,sod.goods_id, sod.unit_id
+)
+SELECT
+  t.* ,
+  ROW_NUMBER() over(ORDER BY cast(t.from_storage_id as integer),cast(t.goods_id as integer) ) row_num,
+  g.name goods_name,
+  g.goods_code,
+  g.unit,
+  c.name from_customer_name,
+  s.name from_storage_name,
+  pc1.name cate_lv1_name,
+  pc2.name cate_lv2_name,
+  p.name prd_name,
+  tcg.name category_name,
+  tsf.name specification_name,
+  g.main_pic_url,
+  u1.name unit_name,
+  c1.name parent_customer_name
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+INNER JOIN t_storage s ON s.id = t.from_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id
+INNER JOIN t_customer c1 ON c1.id = c.parent_customer_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+LEFT JOIN t_category tcg on tcg.id = g.category_id
+LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+LEFT JOIN t_unit u1 on u1.id = t.unit_id
+where 1=1
+{% if from_storage_id!="" %}
+and t.from_storage_id=?from_storage_id
+{% endif%}
+{% if customer_id!="" %}
+and s.customer_id=?customer_id
+{% endif%}
+{% if parent_customer_id!="" %}
+and c.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if keyword!="" %}
+   and  (g.name ilike '%' || ?keyword || '%'  or g.goods_code ilike '%' || ?keyword || '%'
+   or CnFirstChar(g.name) ilike '%' || ?keyword || '%')
+{% endif%}
+ORDER BY cast(t.from_storage_id as integer),cast(t.goods_id as integer)  limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.sale.goods.for.goods.by.cus.cnt]]
+WITH tmp as(
+  SELECT
+    so.from_storage_id,
+    sod.goods_id,
+    sod.unit_id,
+  sum(sod.out_amount) total_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id and s.customer_id in (select c.id from t_account_child_customer acc
+                             inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                             where account_id = ?account_id)
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')  and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY so.from_storage_id,sod.goods_id,sod.unit_id
+)
+SELECT
+count(1) cnt
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+where 1=1
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+  {% if keyword!="" %}
+     and ( g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+  {% endif%}
+
+[[query.sale.goods.for.goods.by.cus.list]]
+WITH tmp as(
+  SELECT
+    so.from_storage_id,
+    sod.goods_id,
+    sod.unit_id,
+  sum(sod.out_amount) total_amount,
+  sum(sod.price * sod.out_amount) total_price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id and s.customer_id in (select c.id from t_account_child_customer acc
+                        inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                           where account_id = ?account_id)
+WHERE so.storage_action_type_id ='5'  AND so.storage_order_status = 11
+  {% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.out_time<=to_date(?end_time,'YYYY-MM-DD')  and so.out_time !=to_date('0001-01-01','YYYY-MM-DD')
+  {% endif%}
+GROUP BY so.from_storage_id,sod.goods_id,sod.unit_id
+)
+SELECT
+  t.* ,
+  ROW_NUMBER() over(ORDER BY cast(t.goods_id as integer) ) row_num,
+  g.name goods_name,
+  g.goods_code,
+  g.unit,
+  pc1.name cate_lv1_name,
+  pc2.name cate_lv2_name,
+  p.name prd_name,
+  g.main_pic_url,
+  tcg.name category_name,
+  tsf.name specification_name,
+  g.spec_scaling,
+  u.name unit_name
+FROM tmp t
+INNER JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+LEFT JOIN t_product p ON p.id = g.prd_id
+LEFT JOIN t_category tcg on tcg.id = g.category_id
+LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+LEFT JOIN t_unit u on u.id = t.unit_id
+where 1=1
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+  {% if keyword!="" %}
+     and ( g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+  {% endif%}
+ORDER BY cast(t.goods_id as integer) limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.goods.timely.storage.order.stock.by.cus.cnt]]
+WITH tmp as(
+   SELECT t.goods_id,
+        t.storage_id,
+        t.unit_id,
+        t.type,
+        sum(used_price) as used_price,
+        sum(used_amount) as used_amount,
+        sum(frozen_price) as frozen_price,
+        sum(frozen_amount)as frozen_amount
+        FROM (
+    SELECT sum(sod.price * sods.not_used_amount)as used_price,
+                    sum(sods.not_used_amount) as used_amount ,
+                    sods.goods_id,s.id storage_id,0 as frozen_price,0 as frozen_amount,sods.unit_id,sod.type
+                 FROM t_storage s
+INNER JOIN t_storage_order_detail_stock sods ON s.id = sods.storage_id
+INNER JOIN t_storage_order_detail sod ON sods.storage_order_detail_id = sod.id  AND sod.status = 1 and sod.unit_id = sods.unit_id
+INNER JOIN t_storage_order so ON so.id = sod.storage_order_id
+WHERE 1=1
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_time.IsZero() %}
+   and so.in_time<=to_date(?end_time,'YYYY-MM-DD')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+   {% endif%}
+GROUP BY  s.id,sods.goods_id,sods.unit_id,sod.type
+UNION
+ SELECT  0 as used_price,0 as used_amount,
+         sod.goods_id,s.id storage_id,sum(sod.price * sod.out_amount)as frozen_price,
+         sum(sod.out_amount) as frozen_amount,sod.unit_id,sod.type
+      from t_storage s
+INNER JOIN t_storage_order so ON so.from_storage_id=s.id AND so.storage_order_status = 8
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id   AND sod.status = 1
+WHERE 1=1
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_time.IsZero() %}
+   and so.in_time<=to_date(?end_time,'YYYY-MM-DD')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+   {% endif%}
+GROUP BY s.id, sod.goods_id,sod.unit_id,sod.type
+) t
+ INNER JOIN t_storage s ON s.id = t.storage_id and s.customer_id in (select c.id from t_account_child_customer acc
+              inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                 where account_id = ?account_id)
+ GROUP BY t.storage_id, t.goods_id,t.unit_id,t.type
+)
+SELECT count(1) cnt from tmp t
+   INNER JOIN t_goods g ON t.goods_id = g.id
+       INNER JOIN t_storage s ON t.storage_id = s.id
+          LEFT JOIN t_customer c ON c.id = s.customer_id
+    WHERE 1= 1
+    {% if keyword!="" %}
+     and (g.name ilike '%'||?keyword||'%'  or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%' )
+     {% endif%}
+ {% if category_id!="" %}
+      and g.category_id = ?category_id
+{% endif%}
+ {% if type!="" && type!="0" %}
+      and t.type = ?type
+{% endif%}
+ {% if storage_id!="" %}
+      and t.storage_id = ?storage_id
+{% endif%}
+ {% if customer_id!="" %}
+      and s.customer_id = ?customer_id
+{% endif%}
+
+[[query.goods.timely.storage.order.stock.by.cus.list]]
+WITH tmp as(
+   SELECT t.goods_id,
+        t.storage_id,
+        t.unit_id,
+        t.type,
+        sum(used_price) as used_price,
+        sum(used_amount) as used_amount,
+        sum(frozen_price) as frozen_price,
+        sum(frozen_amount)as frozen_amount
+        FROM (
+    SELECT sum(sod.price * sods.not_used_amount)as used_price,
+                    sum(sods.not_used_amount) as used_amount ,
+                    sods.goods_id,s.id storage_id,0 as frozen_price,0 as frozen_amount,sods.unit_id,sod.type
+                 FROM t_storage s
+INNER JOIN t_storage_order_detail_stock sods ON s.id = sods.storage_id
+INNER JOIN t_storage_order_detail sod ON sods.storage_order_detail_id = sod.id AND sod.status = 1 and sod.unit_id = sods.unit_id
+INNER JOIN t_storage_order so ON so.id = sod.storage_order_id
+WHERE 1=1
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_time.IsZero() %}
+   and so.in_time<=to_date(?end_time,'YYYY-MM-DD')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+   {% endif%}
+ GROUP BY  s.id,sods.goods_id,sods.unit_id,sod.type
+UNION
+ SELECT  0 as used_price,0 as used_amount,
+         sod.goods_id,s.id storage_id,sum(sod.price * (sod.out_amount+coalesce((SELECT sum(tsod.out_amount) FROM t_rcw_log rl
+                INNER JOIN t_storage_order_detail tsod ON tsod.id = rl.update_storage_order_id AND tsod.status = 1
+                WHERE rl.storage_order_id = sod.id and rl.status = 1),0))) as frozen_price,
+                sum(sod.out_amount + coalesce ((SELECT sum(tsod.out_amount) FROM t_rcw_log rl
+                INNER JOIN t_storage_order_detail tsod ON tsod.id = rl.update_storage_order_id AND tsod.status = 1
+                WHERE rl.storage_order_id = sod.id and rl.status = 1),0)) as frozen_amount,sod.unit_id,sod.type
+      from t_storage s
+INNER JOIN t_storage_order so ON so.from_storage_id=s.id AND so.storage_order_status = 8
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id  AND sod.status = 1
+WHERE 1=1
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_time.IsZero() %}
+   and so.in_time<=to_date(?end_time,'YYYY-MM-DD')  and so.in_time !=to_date('0001-01-01','YYYY-MM-DD')
+   {% endif%}
+ GROUP BY s.id, sod.goods_id,sod.unit_id,sod.type
+) t
+  INNER JOIN t_storage s ON s.id = t.storage_id and s.customer_id in (select c.id from t_account_child_customer acc
+                                             inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                            where account_id = ?account_id)
+  GROUP BY t.storage_id, t.goods_id,t.unit_id,t.type
+)
+SELECT t.*,
+    g.goods_code,
+    g.id goods_id,
+    (used_price+frozen_price) as total_price,
+    (used_amount+frozen_amount) as total_amount,
+  CASE WHEN used_amount+frozen_amount = 0 THEN  0 ELSE round((used_price+frozen_price)/(used_amount+frozen_amount),4)  END unit_price,
+    g.name goods_name,
+    pc1.name cate_lv1_name,
+    pc2.name cate_lv2_name,
+    p.name prd_name,
+    g.unit,
+    tcg.name category_name,
+    tsf.name specification_name,
+    s.name storage_name,
+    c.id customer_id,
+    c.name customer_name,
+    c1.id parent_customer_id,
+    c1.name parent_customer_name,
+    u1.name unit_name,
+    case when t.type = 1 then '商品' else '回收件' end goods_type_desc
+   FROM tmp t
+       INNER JOIN t_goods g ON t.goods_id = g.id
+       LEFT JOIN t_product_category pc1 ON pc1.id = g.cate_lv1_id
+       LEFT JOIN t_product_category pc2 ON pc2.id = g.cate_lv2_id
+       LEFT JOIN t_product p ON p.id = g.prd_id
+        INNER JOIN t_storage s ON t.storage_id = s.id
+       LEFT JOIN t_customer c ON c.id = s.customer_id
+       LEFT JOIN t_customer c1 ON c1.id = c.parent_customer_id
+       LEFT JOIN t_category tcg on tcg.id = g.category_id
+       LEFT JOIN t_specification tsf on tsf.id = g.specification_id
+       left join t_unit u1 on u1.id = t.unit_id
+       WHERE 1= 1
+    {% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  or CnFirstChar(g.name) ilike '%'||?keyword||'%' or g.goods_code ilike '%'||?keyword||'%' )
+   {% endif%}
+ {% if category_id!="" %}
+      and g.category_id = ?category_id
+{% endif%}
+ {% if type!="" && type!="0" %}
+      and t.type = ?type
+{% endif%}
+ {% if storage_id!="" %}
+      and t.storage_id = ?storage_id
+{% endif%}
+ {% if customer_id!="" %}
+      and s.customer_id = ?customer_id
+{% endif%}
+   ORDER BY cast(t.storage_id as integer),cast(t.goods_id as integer)  limit ?page_size offset (?page_num - 1) * ?page_size
+
+
+[[query.import.export.pool.for.cus.cnt]]
+WITH tmp AS (
+  SELECT
+  t1.goods_id,
+  t1.customer_id,
+  t1.type,
+  t1.carry_mouth,
+  t1.unit_id,
+sum(to_amount) to_amount,
+sum(to_total_price) to_total_price,
+sum(from11_amount) from11_amount,
+sum(from11_total_price) from11_total_price,
+sum(from8_amount) from8_amount,
+sum(from8_total_price) from8_total_price,
+sum(stock_num) start_amount,
+sum(stock_finance) start_total_price
+FROM (
+  SELECT
+  t.id,
+  t.goods_id,
+  t.customer_id,
+  t.stock_num,
+  t.stock_finance,
+  t.carry_mouth,
+  t.unit_id,
+  sum(t.in_amount)  to_amount,
+  sum(COALESCE(t.in_amount,0)*t.price) to_total_price,
+  sum(t.out11_amount) from11_amount,
+  sum(COALESCE(t.out11_amount,0)*t.price) from11_total_price,
+  sum( t.out8_amount) from8_amount,
+  sum(  COALESCE(t.out8_amount,0)*t.price) from8_total_price,
+ t.type
+FROM (
+  SELECT sgis.id,ts.customer_id,sgis.goods_id,sgis.stock_num,sgis.stock_finance,coalesce(sod1.in_amount,0) in_amount,0 out11_amount,0 out8_amount,coalesce(sod1.price,0) price, sgis.type,to_char(sgis.create_time::timestamp + '-1 month','YYYY-MM') carry_mouth,sgis.unit_id
+FROM t_storage_goods_init_stock sgis
+INNER JOIN t_storage ts ON ts.id = sgis.storage_id and ts.customer_id in ( select c.id from t_account_child_customer acc
+                                                                                                     inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                                                    where account_id = ?account_id)
+LEFT JOIN t_storage_order so1 ON so1.to_storage_id=sgis.storage_id AND  so1.to_carry_over_log_id = sgis.carry_over_log_id AND so1.storage_order_status = 11
+LEFT JOIN t_storage_order_detail sod1 ON sod1.storage_order_id = so1.id AND sod1.goods_id = sgis.goods_id AND sod1.status = 1 AND sgis.type = sod1.type and sgis.unit_id = sod1.unit_id
+ WHERE sgis.status = 1
+ {% if customer_id !="" %}
+     and ts.customer_id = ?customer_id
+ {% endif%}
+ {% if carry_time !="" %}
+     and to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') = ?carry_time
+ {% endif%}
+ {% if goods_type !="0" && goods_type %}
+     and sod1.type = ?goods_type
+ {% endif%}
+UNION
+SELECT sgis.id,ts.customer_id,sgis.goods_id,sgis.stock_num,sgis.stock_finance,0 in_amount,coalesce(sod1.out_amount,0) out11_amount,0 out8_amount,coalesce(sod1.price,0) price, sgis.type,to_char(sgis.create_time::timestamp + '-1 month','YYYY-MM') carry_mouth,sgis.unit_id
+FROM t_storage_goods_init_stock sgis
+INNER JOIN t_storage ts ON ts.id = sgis.storage_id and ts.customer_id in ( select c.id from t_account_child_customer acc
+                                                                                   inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                       where account_id = ?account_id)
+LEFT JOIN t_storage_order so1 ON so1.from_storage_id=sgis.storage_id AND  so1.from_carry_over_log_id = sgis.carry_over_log_id AND  so1.storage_order_status = 11
+LEFT JOIN t_storage_order_detail sod1 ON sod1.storage_order_id = so1.id AND sod1.goods_id = sgis.goods_id AND sod1.status = 1 AND sgis.type = sod1.type and sgis.unit_id = sod1.unit_id
+    WHERE sgis.status = 1
+    {% if customer_id !="" %}
+        and ts.customer_id = ?customer_id
+    {% endif%}
+    {% if carry_time !="" %}
+        and to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') = ?carry_time
+    {% endif%}
+    {% if goods_type !="0" && goods_type %}
+        and sod1.type = ?goods_type
+    {% endif%}
+ UNION
+SELECT sgis.id,ts.customer_id,sgis.goods_id,sgis.stock_num,sgis.stock_finance, 0 in_amount,0 out11_amount,coalesce(sod1.out_amount,0)   out8_amount,coalesce(sod1.price,0) price, sgis.type,to_char(sgis.create_time::timestamp + '-1 month','YYYY-MM') carry_mouth,sgis.unit_id
+FROM t_storage_goods_init_stock sgis
+INNER JOIN t_storage ts ON ts.id = sgis.storage_id and ts.customer_id in ( select c.id from t_account_child_customer acc
+                                                  inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                 where account_id = ?account_id)
+LEFT JOIN t_storage_order so1 ON so1.from_storage_id=sgis.storage_id AND  so1.from_carry_over_log_id = sgis.carry_over_log_id AND  so1.storage_order_status = 8
+LEFT JOIN t_storage_order_detail sod1 ON sod1.storage_order_id = so1.id AND sod1.goods_id = sgis.goods_id AND sod1.status = 1 AND sgis.type = sod1.type and sgis.unit_id = sod1.unit_id
+WHERE sgis.status = 1
+{% if customer_id !="" %}
+    and ts.customer_id = ?customer_id
+{% endif%}
+{% if carry_time !="" %}
+    and to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') = ?carry_time
+{% endif%}
+{% if goods_type !="0" && goods_type %}
+    and sod1.type = ?goods_type
+{% endif%}
+) t GROUP BY t.id,t.goods_id,t.customer_id,t.type,t.stock_num,t.stock_finance,t.carry_mouth,t.unit_id
+) t1 GROUP BY t1.goods_id,t1.customer_id,t1.type,t1.carry_mouth,t1.unit_id
+)
+SELECT
+  count(1) cnt
+FROM tmp t
+LEFT JOIN t_goods tg ON tg.id=t.goods_id
+LEFT JOIN t_customer tc ON tc.id = t.customer_id
+LEFT JOIN t_product_category pc ON pc.id=tg.cate_lv1_id
+WHERE 1=1
+    {% if keyword!="" %}
+    and (tg.name ilike '%'||?keyword||'%'  OR tg.goods_code  ilike '%'||?keyword||'%')
+   {% endif%}
+    {% if cate_lv1_id !="" %}
+    and tg.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+
+[[query.import.export.pool.for.cus.list]]
+WITH tmp AS (
+  SELECT
+  t1.goods_id,
+  t1.customer_id,
+  t1.type,
+  t1.carry_mouth,
+  t1.unit_id,
+sum(to_amount) to_amount,
+sum(to_total_price) to_total_price,
+sum(from11_amount) from11_amount,
+sum(from11_total_price) from11_total_price,
+sum(from8_amount) from8_amount,
+sum(from8_total_price) from8_total_price,
+sum(carry_num) carry_num,
+sum(stock_num) start_amount,
+sum(stock_finance) start_total_price,
+sum(carry_price) carry_price
+FROM (
+  SELECT
+  t.id,
+  t.goods_id,
+  t.customer_id,
+  t.storage_id,
+  t.stock_num,
+  t.stock_finance,
+  t.carry_mouth,
+    t.carry_num,
+    t.carry_price,
+    t.unit_id,
+  sum(t.in_amount)  to_amount,
+  sum(COALESCE(t.in_amount,0)*t.price) to_total_price,
+  sum(t.out11_amount) from11_amount,
+  sum(COALESCE(t.out11_amount,0)*t.price) from11_total_price,
+  sum( t.out8_amount) from8_amount,
+  sum(  COALESCE(t.out8_amount,0)*t.price) from8_total_price,
+ t.type
+FROM (
+  SELECT sgis.id,ts.customer_id,sgis.storage_id,sgis.goods_id,coalesce(bsgis.stock_num) stock_num,coalesce(bsgis.stock_finance) stock_finance,sgis.stock_num carry_num,sgis.stock_finance carry_price,coalesce(sod1.in_amount,0) in_amount,0 out11_amount,0 out8_amount,coalesce(sod1.price,0) price, sgis.type,to_char(sgis.create_time::timestamp + '-1 month','YYYY-MM') carry_mouth,sgis.unit_id
+FROM t_storage_goods_init_stock sgis
+INNER JOIN t_storage ts ON ts.id = sgis.storage_id and ts.customer_id in ( select c.id from t_account_child_customer acc
+                                                                                                                                                    inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                                                                                                    where account_id = ?account_id)
+LEFT  JOIN t_storage_order so1 ON so1.to_storage_id=sgis.storage_id AND  so1.to_carry_over_log_id = sgis.carry_over_log_id AND so1.storage_order_status = 11
+LEFT JOIN t_storage_order_detail sod1 ON sod1.storage_order_id = so1.id AND sod1.goods_id = sgis.goods_id AND sod1.status = 1 AND sgis.type = sod1.type
+LEFT JOIN (
+    SELECT * FROM (
+       SELECT sgis.id, row_number() OVER (PARTITION BY (bsgis.goods_id,bsgis.storage_id,bsgis.type ) ORDER BY bsgis.create_time DESC ) num,bsgis.stock_num,bsgis.stock_finance FROM t_storage_goods_init_stock sgis
+    INNER JOIN t_storage_goods_init_stock bsgis ON sgis.type=bsgis.type AND sgis.storage_id = bsgis.storage_id AND sgis.goods_id = bsgis.goods_id AND bsgis.status= 1 AND bsgis.create_time < sgis.create_time
+    WHERE sgis.status = 1
+    ) t WHERE t.num = 1
+    ) bsgis on bsgis.id = sgis.id
+ WHERE sgis.status = 1
+ {% if customer_id !="" %}
+     and ts.customer_id = ?customer_id
+ {% endif%}
+ {% if carry_time !="" %}
+     and to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') = ?carry_time
+ {% endif%}
+ {% if goods_type !="0" && goods_type %}
+     and sod1.type = ?goods_type
+ {% endif%}
+UNION
+SELECT sgis.id,ts.customer_id,sgis.storage_id,sgis.goods_id,coalesce(bsgis.stock_num) stock_num,coalesce(bsgis.stock_finance) stock_finance,sgis.stock_num carry_num,sgis.stock_finance carry_price,0 in_amount,coalesce(sod1.out_amount,0) out11_amount,0 out8_amount,coalesce(sod1.price,0) price, sgis.type,to_char(sgis.create_time::timestamp + '-1 month','YYYY-MM') carry_mouth,sgis.unit_id
+FROM t_storage_goods_init_stock sgis
+INNER JOIN t_storage ts ON ts.id = sgis.storage_id and ts.customer_id in ( select c.id from t_account_child_customer acc
+                                                                                                    inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                                                    where account_id = ?account_id)
+LEFT JOIN t_storage_order so1 ON so1.from_storage_id=sgis.storage_id AND  so1.from_carry_over_log_id = sgis.carry_over_log_id AND  so1.storage_order_status = 11
+LEFT JOIN t_storage_order_detail sod1 ON sod1.storage_order_id = so1.id AND sod1.goods_id = sgis.goods_id AND sod1.status = 1 AND sgis.type = sod1.type
+LEFT JOIN (
+    SELECT * FROM (
+       SELECT sgis.id, row_number() OVER (PARTITION BY (bsgis.goods_id,bsgis.storage_id,bsgis.type ) ORDER BY bsgis.create_time DESC ) num,bsgis.stock_num,bsgis.stock_finance FROM t_storage_goods_init_stock sgis
+    INNER JOIN t_storage_goods_init_stock bsgis ON sgis.type=bsgis.type AND sgis.storage_id = bsgis.storage_id AND sgis.goods_id = bsgis.goods_id AND bsgis.status= 1 AND bsgis.create_time < sgis.create_time
+    WHERE sgis.status = 1
+    ) t WHERE t.num = 1
+    ) bsgis on bsgis.id = sgis.id
+    WHERE sgis.status = 1
+    {% if customer_id !="" %}
+        and ts.customer_id = ?customer_id
+    {% endif%}
+    {% if carry_time !="" %}
+        and to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') = ?carry_time
+    {% endif%}
+    {% if goods_type !="0" && goods_type %}
+        and sod1.type = ?goods_type
+    {% endif%}
+ UNION
+SELECT sgis.id,ts.customer_id,sgis.storage_id,sgis.goods_id,coalesce(bsgis.stock_num) stock_num,coalesce(bsgis.stock_finance) stock_finance,sgis.stock_num carry_num,sgis.stock_finance carry_price, 0 in_amount,0 out11_amount,coalesce(sod1.out_amount,0)   out8_amount,coalesce(sod1.price,0) price, sgis.type,to_char(sgis.create_time::timestamp + '-1 month','YYYY-MM') carry_mouth,sgis.unit_id
+FROM t_storage_goods_init_stock sgis
+INNER JOIN t_storage ts ON ts.id = sgis.storage_id and ts.customer_id in ( select c.id from t_account_child_customer acc
+                                                                                   inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                                  where account_id = ?account_id)
+LEFT JOIN t_storage_order so1 ON so1.from_storage_id=sgis.storage_id AND  so1.from_carry_over_log_id = sgis.carry_over_log_id AND  so1.storage_order_status = 8
+LEFT JOIN t_storage_order_detail sod1 ON sod1.storage_order_id = so1.id AND sod1.goods_id = sgis.goods_id AND sod1.status = 1 AND sgis.type = sod1.type
+LEFT JOIN (
+    SELECT * FROM (
+       SELECT sgis.id, row_number() OVER (PARTITION BY (bsgis.goods_id,bsgis.storage_id,bsgis.type ) ORDER BY bsgis.create_time DESC ) num,bsgis.stock_num,bsgis.stock_finance FROM t_storage_goods_init_stock sgis
+    INNER JOIN t_storage_goods_init_stock bsgis ON sgis.type=bsgis.type AND sgis.storage_id = bsgis.storage_id AND sgis.goods_id = bsgis.goods_id AND bsgis.status= 1 AND bsgis.create_time < sgis.create_time
+    WHERE sgis.status = 1
+    ) t WHERE t.num = 1
+    ) bsgis on bsgis.id = sgis.id
+WHERE sgis.status = 1
+{% if customer_id !="" %}
+    and ts.customer_id = ?customer_id
+{% endif%}
+{% if carry_time !="" %}
+    and to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') = ?carry_time
+{% endif%}
+{% if goods_type !="0" && goods_type %}
+    and sod1.type = ?goods_type
+{% endif%}
+) t GROUP BY t.id,t.goods_id,t.storage_id,t.customer_id,t.type,t.carry_mouth,t.carry_price,t.carry_num,t.stock_num,t.stock_finance,t.unit_id
+) t1 GROUP BY t1.goods_id,t1.customer_id,t1.type,t1.carry_mouth,t1.unit_id
+)
+SELECT
+  row_number() OVER (PARTITION BY t.goods_id,t.customer_id,t.type) row_num,
+  tc.name customer_name,
+  tg.name goods_name,
+  tg.goods_code,
+  tg.unit,
+  t.type,
+  t.unit_id,
+  u.name unit_name,
+  pc.name cate_lv1_name,
+  t.goods_id,
+  t.customer_id,
+  t.carry_mouth,
+  CASE WHEN t.type = 1 then '商品' else '回收件' end goods_type_desc,
+  t.start_amount,
+  t.start_total_price,
+  t.to_amount in_amount,
+  t.to_total_price in_total_price,
+  CASE WHEN t.to_amount = 0 THEN 0 ELSE   coalesce(t.to_total_price/t.to_amount,0) END in_unit_price,
+  t.from8_amount+t.from11_amount out_amount,
+  t.from8_total_price+t.from11_total_price out_total_price,
+  CASE WHEN (t.from8_amount+t.from11_amount) =0 THEN 0 ELSE coalesce((t.from8_total_price+t.from11_total_price)/(t.from8_amount+t.from11_amount),0) END out_unit_price,
+  t.carry_num used_amount,
+  t.carry_num  + t.from8_amount hand_amount,
+  t.carry_num,
+  t.carry_price
+FROM tmp t
+LEFT JOIN t_goods tg ON tg.id=t.goods_id
+LEFT JOIN t_customer tc ON tc.id = t.customer_id
+LEFT JOIN t_product_category pc ON pc.id=tg.cate_lv1_id
+LEFT JOIN t_unit  u ON u.id=t.unit_id
+WHERE 1=1
+    {% if keyword!="" %}
+    and (tg.name ilike '%'||?keyword||'%'  OR tg.goods_code  ilike '%'||?keyword||'%')
+   {% endif%}
+    {% if cate_lv1_id !="" %}
+    and tg.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+order by t.carry_mouth desc, t.customer_id,t.goods_id limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[select.carry.time.for.customer.list]]
+SELECT DISTINCT to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') carry_time FROM t_storage_goods_init_stock sgis
+INNER JOIN t_storage s ON s.id = sgis.storage_id and  s.customer_id in (select c.id from t_account_child_customer acc
+                                            inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                      where account_id = ?account_id)
+ORDER BY to_char(sgis.create_time::timestamp + '-1 month','YYYYMM') DESC
+
+[[in.different.allocate.report.by.cus.cnt]]
+SELECT
+count(1) cnt
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.to_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id in (select tct.id from t_account_child_customer acc
+                                                                   inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                                                                   where account_id = ?account_id
+                                                            )
+WHERE so.storage_action_type_id in ('1','7') AND so.storage_order_status = 11 and so.is_to_rcw = false
+   {% if keyword!="" %}
+     and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+       {% if parent_customer_id !="" %}
+          and c.id = ?parent_customer_id
+        {% endif%}
+    {% if cate_lv1_id !="" %}
+    and g.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+   {% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id !="" %}
+    and g.prd_id = ?prd_id
+  {% endif%}
+     {% if !start_time.IsZero() %}
+     and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+    {% endif%}
+     {% if !end_time.IsZero() %}
+    and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+    {% endif%}
+
+
+[[in.different.allocate.report.by.cus.list]]
+with tmp as(
+SELECT
+  so.id storage_order_id,
+  so.storage_order_no,
+  so.storage_order_sub_no,
+  c.id customer_id,
+  c.name customer_name,
+  g.name goods_name,
+  g.goods_code,
+  g.unit,
+  tcg.name category_name,
+  tsf.name specification_name,
+  sod.in_amount + COALESCE( (select sum(tsod.in_amount) from t_rcw_log rl
+                     inner join t_storage_order_detail tsod on tsod.storage_order_id = rl.update_storage_order_id and tsod.status = 1
+                     where rl.storage_order_id = so.id
+                     ),0) in_amount,
+  sod.price,
+  sod.price actual_in_price,
+  so.in_time,
+  u1.name unit_name,
+  tc.name parent_customer_name,
+  so.memo,
+  sod.memo detail_memo
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.to_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id  in (select tct.id from t_account_child_customer acc
+                        inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                                                            where account_id = ?account_id)
+LEFT JOIN t_customer tc on c.parent_customer_id = tc.id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+WHERE so.storage_action_type_id in ('1','7') AND so.storage_order_status = 11 and so.is_to_rcw = false
+   {% if keyword!="" %}
+      and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+    {% if parent_customer_id !="" %}
+       and c.id = ?parent_customer_id
+     {% endif%}
+    {% if cate_lv1_id !="" %}
+    and g.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+   {% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id !="" %}
+    and g.prd_id = ?prd_id
+  {% endif%}
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !end_time.IsZero() %}
+  and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+  {% endif%}
+    order by cast(so.id as integer) desc
+    limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select t.*,t.in_amount * t.price in_total_price,t.in_amount * t.price actual_in_total_price from tmp t
+order by cast(t.storage_order_id as integer) desc
+
+[[out.different.allocate.report.by.cus.cnt]]
+SELECT
+count(1) cnt
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.from_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id  in (select tct.id from t_account_child_customer acc
+                               inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                               where account_id = ?account_id)
+LEFT JOIN t_customer tc on tc.id = c.parent_customer_id
+WHERE so.storage_action_type_id in ('1','7') AND so.storage_order_status in (8,11) and so.is_from_rcw = false
+   {% if keyword!="" %}
+   and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+     {% if parent_customer_id !="" %}
+          and tc.id = ?parent_customer_id
+        {% endif%}
+    {% if cate_lv1_id !="" %}
+    and g.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+   {% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id !="" %}
+    and g.prd_id = ?prd_id
+  {% endif%}
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !end_time.IsZero() %}
+  and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+  {% endif%}
+
+
+[[out.different.allocate.report.by.cus.list]]
+with tmp as(
+SELECT
+  so.id storage_order_id,
+  so.storage_order_no,
+  so.storage_order_sub_no,
+  c.id customer_id,
+  c.name customer_name,
+  g.name goods_name,
+  g.goods_code,
+  g.unit,
+  tcg.name category_name,
+  tsf.name specification_name,
+  sod.out_amount + COALESCE( (select sum(tsod.out_amount) from t_rcw_log rl
+                   inner join t_storage_order_detail tsod on tsod.storage_order_id = rl.update_storage_order_id and tsod.status = 1
+                   where rl.storage_order_id = so.id
+                   ),0) out_amount,
+  u1.name unit_name,
+  sod.price actual_out_price,
+    ( select COALESCE(t.price/t.amount,0)  from (
+      select  sum(tsod.price * tsod.in_amount) price, sum( tsod.in_amount) amount from t_put_out_storage_log tp
+        inner join t_storage_order_detail tsod on tp.ref_storage_order_detail_id = tsod.id and tsod.status = 1
+        where tp.storage_order_detail_id = sod.id and tp.status = 1
+    ) t) price,
+  so.out_time,
+  tc.name parent_customer_name,
+  so.memo,
+  sod.memo detail_memo
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.from_storage_id
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id  in (select tct.id from t_account_child_customer acc
+                                                                              inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                                                                              where account_id = ?account_id)
+LEFT JOIN t_customer tc on tc.id = c.parent_customer_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+WHERE so.storage_action_type_id in ('1','7') AND so.storage_order_status in (8,11) and so.is_from_rcw = false
+   {% if keyword!="" %}
+     and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+     {% if parent_customer_id !="" %}
+       and tc.id = ?parent_customer_id
+     {% endif%}
+    {% if cate_lv1_id !="" %}
+    and g.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+   {% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id !="" %}
+    and g.prd_id = ?prd_id
+  {% endif%}
+   {% if !start_time.IsZero() %}
+   and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !end_time.IsZero() %}
+  and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+  {% endif%}
+  order by cast(so.id as integer) desc
+  limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select t.*,  t.out_amount * t.actual_out_price actual_out_total_price,
+  cast(t.out_amount * t.price as BIGINT) out_total_price from tmp t
+order by cast(t.storage_order_id as integer) desc
+
+[[apanage.recycling.out.for.local.cnt]]
+select
+count(1) cnt
+ from t_storage_order so
+inner join t_storage_order_detail sod on sod.storage_order_id = so.id and sod.status = 1 and sod.type = 2
+inner join t_storage s1 on s1.id = so.from_storage_id and s1.customer_id  in (select c.id from t_account_child_customer acc
+                                            inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                      where account_id = ?account_id)
+inner join t_customer c1 on c1.id = s1.customer_id
+left join t_goods g on g.id = sod.goods_id
+left join t_supplier s on s.id = so.to_supplier_id
+where so.storage_action_type_id in ('9','12')
+{% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c1.name  ilike '%'||?keyword||'%'  OR so.storage_order_no  ilike '%'||?keyword||'%' )
+   {% endif%}
+   {% if storage_action_type_id!="" %}
+     and   so.storage_action_type_id=?storage_action_type_id
+   {% endif%}
+     {% if storage_id !="" %}
+       and s1.id = ?storage_id
+     {% endif%}
+    {% if customer_id !="" %}
+            and c1.id = ?customer_id
+   {% endif%}
+    {% if cate_lv1_id !="" %}
+    and g.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+   {% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id !="" %}
+    and g.prd_id = ?prd_id
+  {% endif%}
+   {% if !start_time.IsZero() %}
+   and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !end_time.IsZero() %}
+  and so.out_time<to_date(?end_time,'YYYY-MM-DD')+1
+  {% endif%}
+
+[[apanage.recycling.out.for.local.list]]
+select
+so.id storage_order_id,
+so.storage_order_no,
+so.storage_order_sub_no,
+s1.id from_storage_id,
+s1.name from_storage_name,
+c1.id from_customer_id,
+c1.name from_customer_name,
+s.name supplier_name,
+g.name goods_name,
+g.goods_code,
+g.unit,
+sat.name out_type,
+'回收件出库' out_mode,
+sod.out_amount,
+sod.price,
+sod.price * sod.out_amount out_total_price,
+so.memo,
+tcg.name category_name,
+tsf.name specification_name,
+t.regenerant_names,
+so.out_time,
+u1.name unit_name,
+sat.name storage_action_type_desc,
+so.storage_action_type_id,
+case when so.storage_order_status = 7 then '否' else '是' end is_out
+ from t_storage_order so
+inner join t_storage_order_detail sod on sod.storage_order_id = so.id and sod.status = 1 and sod.type = 2
+inner join t_storage s1 on s1.id = so.from_storage_id and s1.customer_id  in (select c.id from t_account_child_customer acc
+                                                      inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                      where account_id = ?account_id)
+inner join t_customer c1 on c1.id = s1.customer_id
+left join t_goods g on g.id = sod.goods_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+left join t_supplier s on s.id = so.to_supplier_id
+left join t_unit u1 on u1.id = sod.unit_id
+left join t_storage_action_type sat on sat.id = so.storage_action_type_id
+    left join (
+              select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+               from (
+                  select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+                     left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+               ) z group by z.goods_id
+            ) t on t.goods_id = g.id
+where so.storage_action_type_id  in ('9','12')
+  {% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c1.name  ilike '%'||?keyword||'%'  OR so.storage_order_no  ilike '%'||?keyword||'%' )
+   {% endif%}
+   {% if storage_action_type_id!="" %}
+     and   so.storage_action_type_id=?storage_action_type_id
+   {% endif%}
+        {% if storage_id !="" %}
+          and s1.id = ?storage_id
+        {% endif%}
+       {% if customer_id !="" %}
+               and c1.id = ?customer_id
+      {% endif%}
+    {% if cate_lv1_id !="" %}
+    and g.cate_lv1_id = ?cate_lv1_id
+   {% endif%}
+   {% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+  {% endif%}
+  {% if prd_id !="" %}
+    and g.prd_id = ?prd_id
+  {% endif%}
+   {% if !start_time.IsZero() %}
+   and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !end_time.IsZero() %}
+  and so.out_time<to_date(?end_time,'YYYY-MM-DD')+1
+  {% endif%}
+  order by cast(so.id as integer) desc
+  limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[apanage.recycling.out.for.allot.cnt]]
+select count(1) cnt
+ from t_storage_order so
+inner join t_storage_order_detail sod on sod.storage_order_id = so.id and sod.status = 1 and sod.type = 2
+inner join t_storage s1 on s1.id = so.from_storage_id and s1.customer_id  in (select c.id from t_account_child_customer acc
+                                                       inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                             where account_id = ?account_id)
+inner join t_customer c1 on c1.id = s1.customer_id
+left join t_storage s2 on s2.id = so.to_storage_id
+left join t_customer c2 on c2.id = s2.customer_id
+left join t_goods g on g.id = sod.goods_id
+left join t_supplier s on s.id = so.to_supplier_id
+where so.storage_action_type_id in ('3','6')
+{% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+   {% if !out_start_time.IsZero() %}
+   and so.out_time>=to_date(?out_start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !out_end_time.IsZero() %}
+  and so.out_time<to_date(?out_end_time,'YYYY-MM-DD')+1
+  {% endif%}
+     {% if !in_start_time.IsZero() %}
+     and so.in_time>=to_date(?in_start_time,'YYYY-MM-DD')
+    {% endif%}
+     {% if !in_end_time.IsZero() %}
+    and so.in_time<to_date(?in_end_time,'YYYY-MM-DD')+1
+    {% endif%}
+       {% if type =="1" %}
+       and so.storage_action_type_id = '6'
+      {% endif%}
+       {% if type =="2" %}
+       and so.storage_action_type_id = '3'
+      {% endif%}
+    {% if from_storage_id !="" %}
+       and so.from_storage_id = ?from_storage_id
+      {% endif%}
+
+[[apanage.recycling.out.for.allot.list]]
+select
+so.id storage_order_id,
+so.storage_order_no,
+so.storage_order_sub_no,
+s1.id from_storage_id,
+s1.name from_storage_name,
+c1.id from_customer_id,
+c1.name from_customer_name,
+s2.id to_storage_id,
+s2.name to_storage_name,
+c2.id to_customer_id,
+c2.name to_customer_name,
+s.name supplier_name,
+g.name goods_name,
+g.goods_code,
+g.unit,
+case when so.storage_action_type_id = '3' then '回收件本地调拨'
+  when so.storage_action_type_id = '6' then '回收件异地调拨'
+  else '错误' end out_mode,
+ '回收件出库' out_type,
+sod.out_amount,
+sod.price,
+sod.price * sod.out_amount out_total_price,
+so.memo,
+t.regenerant_names,
+so.out_time,
+so.in_time,
+tcg.name category_name,
+tsf.name specification_name,
+u1.name unit_name,
+case when so.storage_order_status = 7 then '否' else '是' end is_out
+ from t_storage_order so
+inner join t_storage_order_detail sod on sod.storage_order_id = so.id and sod.status = 1 and sod.type = 2
+inner join t_storage s1 on s1.id = so.from_storage_id  and s1.customer_id  in (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                         where account_id = ?account_id)
+inner join t_customer c1 on c1.id = s1.customer_id
+left join t_storage s2 on s2.id = so.to_storage_id
+left join t_customer c2 on c2.id = s2.customer_id
+left join t_goods g on g.id = sod.goods_id
+left join t_supplier s on s.id = so.to_supplier_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+    left join (
+              select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+               from (
+                  select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+                     left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+               ) z group by z.goods_id
+            ) t on t.goods_id = g.id
+where so.storage_action_type_id in ('3','6')
+{% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+   {% if !out_start_time.IsZero() %}
+   and so.out_time>=to_date(?out_start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !out_end_time.IsZero() %}
+  and so.out_time<to_date(?out_end_time,'YYYY-MM-DD')+1
+  {% endif%}
+     {% if !in_start_time.IsZero() %}
+     and so.in_time>=to_date(?in_start_time,'YYYY-MM-DD')
+    {% endif%}
+     {% if !in_end_time.IsZero() %}
+    and so.in_time<to_date(?in_end_time,'YYYY-MM-DD')+1
+    {% endif%}
+       {% if type =="1" %}
+       and so.storage_action_type_id = '6'
+      {% endif%}
+       {% if type =="2" %}
+       and so.storage_action_type_id = '3'
+      {% endif%}
+    {% if from_storage_id !="" %}
+       and so.from_storage_id = ?from_storage_id
+      {% endif%}
+  order by cast(so.id as integer) desc
+  limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[apanage.recycling.in.for.allot.cnt]]
+select count(1) cnt
+ from t_storage_order so
+inner join t_storage_order_detail sod on sod.storage_order_id = so.id and sod.status = 1 and sod.type = 2
+inner join t_storage s1 on s1.id = so.from_storage_id
+inner join t_customer c1 on c1.id = s1.customer_id
+inner join t_storage s2 on s2.id = so.to_storage_id and s2.customer_id  in (select c.id from t_account_child_customer acc
+                            inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                       where account_id = ?account_id)
+inner join t_customer c2 on c2.id = s2.customer_id
+left join t_goods g on g.id = sod.goods_id
+left join t_supplier s on s.id = so.to_supplier_id
+where so.storage_action_type_id in ('3','6')  and storage_order_status != 7
+{% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' OR so.storage_order_no ilike '%'||?keyword||'%')
+   {% endif%}
+   {% if !out_start_time.IsZero() %}
+   and so.out_time>=to_date(?out_start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !out_end_time.IsZero() %}
+  and so.out_time<to_date(?out_end_time,'YYYY-MM-DD')+1
+  {% endif%}
+     {% if !in_start_time.IsZero() %}
+     and so.in_time>=to_date(?in_start_time,'YYYY-MM-DD')
+    {% endif%}
+     {% if !in_end_time.IsZero() %}
+    and so.in_time<to_date(?in_end_time,'YYYY-MM-DD')+1
+    {% endif%}
+       {% if type =="1" %}
+       and so.storage_action_type_id = '6'
+      {% endif%}
+       {% if type =="2" %}
+       and so.storage_action_type_id = '3'
+      {% endif%}
+    {% if to_storage_id !="" %}
+       and so.to_storage_id = ?to_storage_id
+      {% endif%}
+
+[[apanage.recycling.in.for.allot.list]]
+select
+so.id storage_order_id,
+so.storage_order_no,
+so.storage_order_sub_no,
+s1.id from_storage_id,
+s1.name from_storage_name,
+c1.id from_customer_id,
+c1.name from_customer_name,
+s2.id to_storage_id,
+s2.name to_storage_name,
+c2.id to_customer_id,
+c2.name to_customer_name,
+s.name supplier_name,
+g.name goods_name,
+g.goods_code,
+g.unit,
+case when so.storage_action_type_id = '3' then '回收件本地调拨'
+  when so.storage_action_type_id = '6' then '回收件异地调拨'
+  else '错误' end in_mode,
+   '回收件入库' in_type,
+sod.in_amount,
+sod.price,
+sod.price * sod.in_amount in_total_price,
+so.memo,
+so.out_time,
+so.in_time,
+t.regenerant_names,
+tcg.name category_name,
+tsf.name specification_name,
+case when so.storage_order_status =8 then '否' else '是' end is_in
+ from t_storage_order so
+inner join t_storage_order_detail sod on sod.storage_order_id = so.id and sod.status = 1 and sod.type = 2
+inner join t_storage s1 on s1.id = so.from_storage_id
+inner join t_customer c1 on c1.id = s1.customer_id
+inner join t_storage s2 on s2.id = so.to_storage_id and s2.customer_id  in (select c.id from t_account_child_customer acc
+                  inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                    where account_id = ?account_id)
+inner join t_customer c2 on c2.id = s2.customer_id
+left join t_goods g on g.id = sod.goods_id
+left join t_supplier s on s.id = so.to_supplier_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+    left join (
+              select string_agg(z.regenerant_name, ',') as regenerant_names, z.goods_id
+               from (
+                  select gr.goods_id ,r.name regenerant_name from t_goods_regenerant gr
+                     left join t_regenerant r on gr.regenerant_id = r.id where gr.status = 1
+               ) z group by z.goods_id
+            ) t on t.goods_id = g.id
+where so.storage_action_type_id in ('3','6') and storage_order_status != 7
+{% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+   {% if !out_start_time.IsZero() %}
+   and so.out_time>=to_date(?out_start_time,'YYYY-MM-DD')
+  {% endif%}
+   {% if !out_end_time.IsZero() %}
+  and so.out_time<to_date(?out_end_time,'YYYY-MM-DD')+1
+  {% endif%}
+     {% if !in_start_time.IsZero() %}
+     and so.in_time>=to_date(?in_start_time,'YYYY-MM-DD')
+    {% endif%}
+     {% if !in_end_time.IsZero() %}
+    and so.in_time<to_date(?in_end_time,'YYYY-MM-DD')+1
+    {% endif%}
+       {% if type =="1" %}
+       and so.storage_action_type_id = '6'
+      {% endif%}
+       {% if type =="2" %}
+       and so.storage_action_type_id = '3'
+      {% endif%}
+  {% if to_storage_id !="" %}
+       and so.to_storage_id = ?to_storage_id
+      {% endif%}
+  order by cast(so.id as integer) desc
+  limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[customer.require.summary.cnt]]
+WITH tmp as(
+    SELECT t.storage_order_no,
+  sum(t.require_amount) require_amount,
+  sum(t.in_amount) in_amount
+  FROM (
+    select
+  so.storage_order_no,
+  sum(sod.require_amount) require_amount,
+  sum(CASE WHEN sod.in_amount = -1 THEN 0 ELSE sod.in_amount END ) in_amount
+  from t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON so.id = sod.storage_order_id AND sod.status = 1 AND sod.type = 1
+  INNER JOIN t_storage s ON s.id = so.apply_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                                                    inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                    where account_id = ?account_id
+                                                                             )
+  WHERE so.storage_action_type_id in  ('1','7') and so.storage_order_status != 1
+  GROUP BY so.storage_order_no
+  UNION
+      SELECT   t1.storage_order_no,
+        sum( t1.require_amount) require_amount,
+        sum(coalesce(t1.in_amount,0)) in_amount FROM (
+  select
+  so.storage_order_no,
+  sod.require_amount,
+      (SELECT sum(coalesce( CASE WHEN sod2.in_amount = -1 THEN 0 ELSE sod2.in_amount END,0) ) FROM t_storage_order_detail  sod1
+    LEFT JOIN t_storage_order tso ON tso.id = sod1.storage_order_id
+  LEFT JOIN t_storage_order tso1 ON tso1.storage_order_no = tso.storage_order_no
+  LEFT JOIN t_storage_order_detail sod2 ON sod2.storage_order_id = tso1.id
+      WHERE sod1.ref_order_id = o.id
+      GROUP BY sod.id
+    ) in_amount
+   from t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON so.id = sod.storage_order_id AND sod.status = 1 AND sod.type = 1
+  INNER JOIN t_storage s ON s.id = so.apply_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                                                                   inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                           where account_id = ?account_id)
+  LEFT JOIN t_order o ON o.ref_storage_order_detail_id = sod.id
+  WHERE so.storage_action_type_id = '8' AND so.storage_order_status = '12'
+  GROUP BY so.storage_order_no,sod.id,o.id
+      ) t1  GROUP BY t1.storage_order_no
+  UNION
+      SELECT t1.storage_order_no,
+        sum( t1.require_amount) require_amount,
+        sum(coalesce(t1.in_amount,0)) in_amount
+      FROM (
+  select
+  so.storage_order_no,
+  sod.require_amount,
+    (SELECT sum(coalesce( CASE WHEN sod2.in_amount = -1 THEN 0 ELSE sod2.in_amount END,0) ) FROM t_storage_order_detail  sod1
+    LEFT JOIN t_storage_order tso ON tso.id = sod1.storage_order_id
+  LEFT JOIN t_storage_order tso1 ON tso1.storage_order_no = tso.storage_order_no
+  LEFT JOIN t_storage_order_detail sod2 ON sod2.storage_order_id = tso1.id
+      WHERE sod.id = sod1.ref_storage_order_detail_id AND sod1.status = 1 AND sod1.type = sod.type
+      GROUP BY sod.id
+    ) in_amount
+  from t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON so.id = sod.storage_order_id AND sod.status = 1 AND sod.type = 1
+  INNER JOIN t_storage s ON s.id = so.apply_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                                                                             inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                               where account_id = ?account_id)
+  WHERE so.storage_action_type_id = '8' AND so.storage_order_status != '12'
+  GROUP BY so.storage_order_no,sod.id
+      ) t1 GROUP BY t1.storage_order_no
+  ) t GROUP BY t.storage_order_no
+)
+SELECT
+count(1) cnt
+FROM tmp t
+INNER JOIN t_storage_order so ON so.storage_order_no = t.storage_order_no AND so.storage_order_sub_no='0001'
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage ts ON ts.id = so.apply_storage_id
+INNER JOIN t_customer tc ON tc.id = ts.customer_id
+LEFT JOIN t_goods g ON g.id = sod.goods_id
+LEFT JOIN t_category c ON c.id = g.category_id
+LEFT JOIN t_specification sp ON sp.id = g.specification_id
+where 1=1
+{% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' OR t.storage_order_no  ilike '%'||?keyword||'%')
+{% endif%}
+{% if storage_id !="" %}
+   and so.apply_storage_id = ?storage_id
+{% endif%}
+{% if parent_customer_id !="" %}
+   and tc.parent_customer_id = ?parent_customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+  {% if !start_time.IsZero() %}
+  and so.create_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.create_time<=to_date(?end_time,'YYYY-MM-DD') +1
+  {% endif%}
+
+[[customer.require.summary.list]]
+WITH tmp as(
+    SELECT t.storage_order_no,
+  sum(t.require_amount) require_amount,
+  sum(t.in_amount) in_amount
+  FROM (
+    select
+  so.storage_order_no,
+  sum(sod.require_amount) require_amount,
+  sum(CASE WHEN sod.in_amount = -1 THEN 0 ELSE sod.in_amount END ) in_amount
+  from t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON so.id = sod.storage_order_id AND sod.status = 1 AND sod.type = 1
+  INNER JOIN t_storage s ON s.id = so.apply_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                                                                    inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                                                   where account_id = ?account_id)
+  WHERE so.storage_action_type_id in  ('1','7') and so.storage_order_status != 1
+  GROUP BY so.storage_order_no
+  UNION
+      SELECT   t1.storage_order_no,
+        sum( t1.require_amount) require_amount,
+        sum(coalesce(t1.in_amount,0)) in_amount FROM (
+          select
+  so.storage_order_no,
+  sod.require_amount,
+      (SELECT sum(coalesce( CASE WHEN sod2.in_amount = -1 THEN 0 ELSE sod2.in_amount END,0) ) FROM t_storage_order_detail  sod1
+    LEFT JOIN t_storage_order tso ON tso.id = sod1.storage_order_id
+  LEFT JOIN t_storage_order tso1 ON tso1.storage_order_no = tso.storage_order_no
+  LEFT JOIN t_storage_order_detail sod2 ON sod2.storage_order_id = tso1.id
+      WHERE sod1.ref_order_id = o.id
+      GROUP BY sod.id
+    ) in_amount
+   from t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON so.id = sod.storage_order_id AND sod.status = 1 AND sod.type = 1
+  INNER JOIN t_storage s ON s.id = so.apply_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                                   inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                               where account_id = ?account_id)
+  LEFT JOIN t_order o ON o.ref_storage_order_detail_id = sod.id
+  WHERE so.storage_action_type_id = '8' AND so.storage_order_status = '12'
+  GROUP BY so.storage_order_no,sod.id,o.id
+      ) t1  GROUP BY t1.storage_order_no
+  UNION
+      SELECT t1.storage_order_no,
+        sum( t1.require_amount) require_amount,
+        sum(coalesce(t1.in_amount,0)) in_amount
+      FROM (
+  select
+  so.storage_order_no,
+  sod.require_amount,
+    (SELECT sum(coalesce( CASE WHEN sod2.in_amount = -1 THEN 0 ELSE sod2.in_amount END,0) ) FROM t_storage_order_detail  sod1
+    LEFT JOIN t_storage_order tso ON tso.id = sod1.storage_order_id
+  LEFT JOIN t_storage_order tso1 ON tso1.storage_order_no = tso.storage_order_no
+  LEFT JOIN t_storage_order_detail sod2 ON sod2.storage_order_id = tso1.id
+      WHERE sod.id = sod1.ref_storage_order_detail_id AND sod1.status = 1 AND sod1.type = sod.type
+      GROUP BY sod.id
+    ) in_amount
+  from t_storage_order so
+  INNER JOIN t_storage_order_detail sod ON so.id = sod.storage_order_id AND sod.status = 1 AND sod.type = 1
+  INNER JOIN t_storage s ON s.id = so.apply_storage_id and s.customer_id in  (select c.id from t_account_child_customer acc
+                                       inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                   where account_id = ?account_id)
+  WHERE so.storage_action_type_id = '8' AND so.storage_order_status != '12'
+  GROUP BY so.storage_order_no,sod.id
+      ) t1 GROUP BY t1.storage_order_no
+  ) t GROUP BY t.storage_order_no
+)
+SELECT t.storage_order_no,g.id goods_id,g.name goods_name,g.goods_code,t.require_amount,t.in_amount,
+g.unit,ts.name storage_name,tc.name customer_name,sod.require_arrive_time,
+tcg.name category_name,
+tsf.name specification_name
+FROM tmp t
+INNER JOIN t_storage_order so ON so.storage_order_no = t.storage_order_no AND so.storage_order_sub_no='0001'
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage ts ON ts.id = so.apply_storage_id
+INNER JOIN t_customer tc ON tc.id = ts.customer_id
+LEFT JOIN t_goods g ON g.id = sod.goods_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+where 1=1
+{% if keyword!="" %}
+    and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' OR t.storage_order_no  ilike '%'||?keyword||'%')
+   {% endif%}
+{% if storage_id !="" %}
+       and so.apply_storage_id = ?storage_id
+{% endif%}
+{% if parent_customer_id !="" %}
+   and tc.parent_customer_id = ?parent_customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+   and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+  {% if !start_time.IsZero() %}
+  and so.create_time>=to_date(?start_time,'YYYY-MM-DD')
+  {% endif%}
+  {% if !end_time.IsZero() %}
+  and so.create_time<=to_date(?end_time,'YYYY-MM-DD')  +1
+  {% endif%}
+   order by cast(so.id as integer) desc
+   limit ?page_size offset (?page_num - 1) * ?page_size
+
+
+[[query.in.local.allocation.summary.cnt]]
+SELECT
+count(1) cnt
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.to_storage_id
+{% if !temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id
+{% endif%}
+{% if temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id  in (select tct.id from t_account_child_customer acc
+                               inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                               where account_id = ?account_id)
+{% endif%}
+WHERE so.storage_action_type_id in ('2','11') AND so.storage_order_status in (11) and so.is_to_rcw = false
+{% if keyword!="" %}
+   and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+{% endif%}
+{% if customer_id !="" %}
+   and c.id = ?customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+  and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+{% if category_id !="" %}
+  and sod.category_id = ?category_id
+{% endif%}
+{% if !start_in_time.IsZero() %}
+  and so.in_time>=to_date(?start_in_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_in_time.IsZero() %}
+  and so.in_time<to_date(?end_in_time,'YYYY-MM-DD')+1
+{% endif%}
+
+
+[[query.in.local.allocation.summary.list]]
+with tmp as(
+SELECT
+  so.id storage_order_id,
+  so.storage_order_no,
+  so.storage_order_sub_no,
+  c.id to_customer_id,
+  c.name to_customer_name,
+  s.id to_storage_id,
+  s.name to_storage_name,
+  c1.id from_customer_id,
+  c1.name from_customer_name,
+  s1.id from_storage_id,
+  s1.name from_storage_name,
+  g.name goods_name,
+  g.goods_code,
+  tcg.name category_name,
+  tsf.name specification_name,
+  sod.in_amount + COALESCE( (select sum(tsod.in_amount) from t_rcw_log rl
+                   inner join t_storage_order_detail tsod on tsod.storage_order_id = rl.update_storage_order_id and tsod.status = 1
+                   where rl.storage_order_id = so.id
+                   ),0) in_amount,
+  u1.name unit_name,
+  sod.price actual_in_price,
+  sod.price price,
+  so.out_time,
+  so.in_time,
+  so.memo,
+  sod.memo detail_memo
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.to_storage_id
+{% if !temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id
+{% endif%}
+{% if temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id  in (select tct.id from t_account_child_customer acc
+                               inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                               where account_id = ?account_id)
+{% endif%}
+LEFT JOIN t_storage s1 ON s1.id= so.from_storage_id
+LEFT JOIN t_customer c1 on c1.id = s1.customer_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+WHERE so.storage_action_type_id in ('2','11') AND so.storage_order_status in (11) and so.is_to_rcw = false
+{% if keyword!="" %}
+   and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+{% endif%}
+{% if customer_id !="" %}
+   and c.id = ?customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+  and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+{% if category_id !="" %}
+  and sod.category_id = ?category_id
+{% endif%}
+{% if !start_in_time.IsZero() %}
+  and so.in_time>=to_date(?start_in_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_in_time.IsZero() %}
+  and so.in_time<to_date(?end_in_time,'YYYY-MM-DD')+1
+{% endif%}
+  order by cast(so.id as integer) desc
+  limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select t.*,  t.in_amount * t.actual_in_price actual_in_total_price,
+  cast(t.in_amount * t.price as BIGINT) in_total_price from tmp t
+order by cast(t.storage_order_id as integer) desc
+
+[[query.out.local.allocation.summary.cnt]]
+SELECT
+count(1) cnt
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.from_storage_id
+{% if !temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id
+{% endif%}
+{% if temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id  in (select tct.id from t_account_child_customer acc
+                               inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                               where account_id = ?account_id)
+{% endif%}
+WHERE so.storage_action_type_id in ('2','11') AND so.storage_order_status in (8,11) and so.is_from_rcw = false
+{% if keyword!="" %}
+   and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+{% endif%}
+{% if customer_id !="" %}
+   and c.id = ?customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+  and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+{% if category_id !="" %}
+  and sod.category_id = ?category_id
+{% endif%}
+{% if !start_out_time.IsZero() %}
+  and so.out_time>=to_date(?start_out_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_out_time.IsZero() %}
+  and so.out_time<to_date(?end_out_time,'YYYY-MM-DD')+1
+{% endif%}
+
+
+[[query.out.local.allocation.summary.list]]
+with tmp as(
+SELECT
+  so.id storage_order_id,
+  so.storage_order_no,
+  so.storage_order_sub_no,
+  c.id from_customer_id,
+  c.name from_customer_name,
+  s.id from_storage_id,
+  s.name from_storage_name,
+  c1.id to_customer_id,
+  c1.name to_customer_name,
+  s1.id to_storage_id,
+  s1.name to_storage_name,
+  g.name goods_name,
+  g.goods_code,
+  tcg.name category_name,
+  tsf.name specification_name,
+  sod.out_amount + COALESCE( (select sum(tsod.out_amount) from t_rcw_log rl
+                   inner join t_storage_order_detail tsod on tsod.storage_order_id = rl.update_storage_order_id and tsod.status = 1
+                   where rl.storage_order_id = so.id
+                   ),0) out_amount,
+  u1.name unit_name,
+  sod.price actual_out_price,
+    ( select COALESCE(t.price/t.amount,0)  from (
+      select  sum(tsod.price * tsod.in_amount) price, sum( tsod.in_amount) amount from t_put_out_storage_log tp
+        inner join t_storage_order_detail tsod on tp.ref_storage_order_detail_id = tsod.id and tsod.status = 1
+        where tp.storage_order_detail_id = sod.id and tp.status = 1
+    ) t) price,
+  so.out_time,
+  so.in_time,
+  so.memo,
+  sod.memo detail_memo
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.status = 1 AND sod.storage_order_id = so.id
+INNER JOIN t_goods g ON sod.goods_id = g.id
+INNER JOIN t_storage s ON s.id= so.from_storage_id
+{% if !temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id
+{% endif%}
+{% if temp  %}
+INNER JOIN t_customer c ON c.id = s.customer_id and c.id  in (select tct.id from t_account_child_customer acc
+                               inner join t_customer tct on tct.status != 3 and tct.leaf = 1 and ( tct.id = acc.customer_id or tct.tree_ids like '%,'||acc.customer_id||',%' or  tct.tree_ids like '%,'||acc.customer_id or  tct.tree_ids like acc.customer_id||',%' or tct.tree_ids like acc.customer_id )
+                               where account_id = ?account_id)
+{% endif%}
+LEFT JOIN t_storage s1 ON s1.id= so.to_storage_id
+LEFT JOIN t_customer c1 on c1.id = s1.customer_id
+LEFT JOIN t_category tcg on tcg.id = sod.category_id
+LEFT JOIN t_specification tsf on tsf.id = sod.specification_id
+LEFT JOIN t_unit u1 on u1.id = sod.unit_id
+WHERE so.storage_action_type_id in ('2','11') AND so.storage_order_status in (8,11) and so.is_from_rcw = false
+{% if keyword!="" %}
+   and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%'  OR c.name  ilike '%'||?keyword||'%' OR so.storage_order_no  ilike '%'||?keyword||'%')
+{% endif%}
+{% if customer_id !="" %}
+   and c.id = ?customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+  and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+{% if category_id !="" %}
+  and sod.category_id = ?category_id
+{% endif%}
+{% if !start_out_time.IsZero() %}
+  and so.out_time>=to_date(?start_out_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_out_time.IsZero() %}
+  and so.out_time<to_date(?end_out_time,'YYYY-MM-DD')+1
+{% endif%}
+  order by cast(so.id as integer) desc
+  limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select t.*,  t.out_amount * t.actual_out_price actual_out_total_price,
+  cast(t.out_amount * t.price as BIGINT) out_total_price from tmp t
+order by cast(t.storage_order_id as integer) desc
+
+[[query.import.export.instant.pool.for.cus.cnt]]
+WITH tmp as(
+  SELECT
+ t.goods_id,t.unit_id,t.category_id,s.customer_id,t.specification_id,t.type,
+  sum(t.out_amount) out_amount,
+  sum(t.in_amount) in_amount,
+  sum(t.out_amount * t.price) out_total_price,
+  sum(t.in_amount * t.price) in_total_price
+FROM (
+  SELECT
+sod.goods_id,sod.unit_id,sod.category_id,so.from_storage_id storage_id,sod.specification_id,sod.type,
+  CASE WHEN sod.out_amount >= 0 AND so.is_from_rcw = FALSE THEN sod.out_amount WHEN sod.out_amount < 0 AND so.is_from_rcw = TRUE THEN sod.out_amount ELSE 0 END out_amount,
+  0 as in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (8,11)
+{% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.out_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+UNION
+SELECT
+sod.goods_id,sod.unit_id,sod.category_id,so.to_storage_id storage_id,sod.specification_id,sod.type,
+  0 out_amount,
+  CASE WHEN sod.in_amount >= 0 AND so.is_to_rcw = FALSE THEN sod.in_amount WHEN sod.in_amount < 0 AND so.is_to_rcw = TRUE THEN sod.in_amount ELSE 0 END in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.to_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (11)
+{% if !start_time.IsZero() %}
+  and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+) t
+INNER JOIN t_storage s ON s.id= t.storage_id
+GROUP BY t.goods_id,t.unit_id,t.category_id,s.customer_id,t.specification_id,t.type
+)
+SELECT
+count(1) cnt
+FROM tmp t
+LEFT JOIN t_customer c1 ON c1.id=t.customer_id
+LEFT JOIN t_goods g ON g.id = t.goods_id
+WHERE 1=1
+{% if customer_id !="" %}
+   and t.customer_id = ?customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+  and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+{% if category_id !="" %}
+   and t.category_id = ?category_id
+{% endif%}
+{% if goods_type !="" %}
+   and t.type = ?goods_type
+{% endif%}
+{% if keyword!="" %}
+   and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' )
+{% endif%}
+
+[[query.import.export.instant.pool.for.cus.list]]
+WITH tmp as(
+  SELECT
+ t.goods_id,t.unit_id,t.category_id,s.customer_id,t.specification_id,t.type,
+  sum(t.out_amount) out_amount,
+  sum(t.in_amount) in_amount,
+  sum(t.out_amount * t.price) out_total_price,
+  sum(t.in_amount * t.price) in_total_price
+FROM (
+  SELECT
+sod.goods_id,sod.unit_id,sod.category_id,so.from_storage_id storage_id,sod.specification_id,sod.type,
+  CASE WHEN sod.out_amount >= 0 AND so.is_from_rcw = FALSE THEN sod.out_amount WHEN sod.out_amount < 0 AND so.is_from_rcw = TRUE THEN sod.out_amount ELSE 0 END out_amount,
+  0 as in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (8,11)
+{% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.out_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+UNION
+SELECT
+sod.goods_id,sod.unit_id,sod.category_id,so.to_storage_id storage_id,sod.specification_id,sod.type,
+  0 out_amount,
+  CASE WHEN sod.in_amount >= 0 AND so.is_to_rcw = FALSE THEN sod.in_amount WHEN sod.in_amount < 0 AND so.is_to_rcw = TRUE THEN sod.in_amount ELSE 0 END in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.to_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (11)
+{% if !start_time.IsZero() %}
+  and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+) t
+INNER JOIN t_storage s ON s.id= t.storage_id
+GROUP BY t.goods_id,t.unit_id,t.category_id,s.customer_id,t.specification_id,t.type
+)
+SELECT
+t.*,t.type goods_type,CASE WHEN t.out_amount = 0 then 0 else  coalesce(t.out_total_price/t.out_amount,0) END out_unit_price,
+CASE WHEN t.in_amount = 0 then 0 else coalesce(t.in_total_price/t.in_amount,0) END  in_unit_price,
+CASE WHEN t.type = 1 THEN '商品' ELSE '回收件' END goods_type_desc,
+c1.name customer_name,c2.name parent_customer_name,
+g.name goods_name,g.goods_code,
+u1.name unit_name,spf.name specification_name,ctg.name category_name,pc.name cate_lv1_name
+FROM tmp t
+LEFT JOIN t_customer c1 ON c1.id=t.customer_id
+LEFT JOIN t_customer c2 ON c2.id = c1.parent_customer_id
+LEFT JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_product_category pc ON pc.id = g.cate_lv1_id
+LEFT JOIN t_specification spf ON spf.id = t.specification_id
+LEFT JOIN t_category ctg ON ctg.id = t.category_id
+LEFT JOIN t_unit u1 ON u1.id = t.unit_id
+WHERE 1=1
+{% if customer_id !="" %}
+   and t.customer_id = ?customer_id
+{% endif%}
+{% if cate_lv1_id !="" %}
+   and g.cate_lv1_id = ?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id !="" %}
+  and g.cate_lv2_id = ?cate_lv2_id
+{% endif%}
+{% if prd_id !="" %}
+   and g.prd_id = ?prd_id
+{% endif%}
+{% if category_id !="" %}
+   and t.category_id = ?category_id
+{% endif%}
+{% if goods_type !="" %}
+   and t.type = ?goods_type
+{% endif%}
+{% if keyword!="" %}
+   and (g.name ilike '%'||?keyword||'%'  OR g.goods_code  ilike '%'||?keyword||'%' )
+{% endif%}
+ORDER BY cast(c2.id as integer), cast(t.customer_id as integer)  limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[query.import.export.instant.pool.detail.cnt]]
+WITH tmp as(
+    SELECT so.id storage_order_id,so.storage_order_no,so.storage_order_sub_no,in_time,out_time,
+sod.goods_id,sod.unit_id,sod.category_id,so.from_storage_id storage_id,sod.specification_id,sod.type,
+  CASE WHEN sod.out_amount >= 0 AND so.is_from_rcw = FALSE THEN sod.out_amount WHEN sod.out_amount < 0 AND so.is_from_rcw = TRUE THEN sod.out_amount ELSE 0 END out_amount,
+  0 as in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (8,11) AND s.customer_id =?customer_id AND sod.goods_id = ?goods_id AND sod.category_id = ?category_id AND sod.type = ?goods_type
+{% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.out_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+UNION
+SELECT so.id storage_order_id,so.storage_order_no,so.storage_order_sub_no,in_time,out_time,
+sod.goods_id,sod.unit_id,sod.category_id,so.to_storage_id storage_id,sod.specification_id,sod.type,
+  0 out_amount,
+  CASE WHEN sod.in_amount >= 0 AND so.is_to_rcw = FALSE THEN sod.in_amount WHEN sod.in_amount < 0 AND so.is_to_rcw = TRUE THEN sod.in_amount ELSE 0 END in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.to_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (11) AND s.customer_id = ?customer_id  AND sod.goods_id = ?goods_id  AND sod.category_id = ?category_id AND sod.type = ?goods_type
+{% if !start_time.IsZero() %}
+  and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+)
+SELECT
+count(1) cnt
+FROM tmp t
+
+[[query.import.export.instant.pool.detail.list]]
+WITH tmp as(
+    SELECT so.id storage_order_id,so.storage_order_no,so.storage_order_sub_no,out_time all_time,
+sod.goods_id,sod.unit_id,sod.category_id,so.from_storage_id storage_id,sod.specification_id,sod.type,price out_unit_price,0 in_unit_price,
+  CASE WHEN sod.out_amount >= 0 AND so.is_from_rcw = FALSE THEN sod.out_amount WHEN sod.out_amount < 0 AND so.is_from_rcw = TRUE THEN sod.out_amount ELSE 0 END out_amount,
+  0 as in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.from_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (8,11) AND s.customer_id =?customer_id AND sod.goods_id = ?goods_id AND sod.category_id = ?category_id AND sod.type = ?goods_type
+{% if !start_time.IsZero() %}
+  and so.out_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.out_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+UNION
+SELECT so.id storage_order_id,so.storage_order_no,so.storage_order_sub_no,in_time all_time,
+sod.goods_id,sod.unit_id,sod.category_id,so.to_storage_id storage_id,sod.specification_id,sod.type,0 out_unit_price,price in_unit_price,
+  0 out_amount,
+  CASE WHEN sod.in_amount >= 0 AND so.is_to_rcw = FALSE THEN sod.in_amount WHEN sod.in_amount < 0 AND so.is_to_rcw = TRUE THEN sod.in_amount ELSE 0 END in_amount,
+ sod.price
+FROM t_storage_order so
+INNER JOIN t_storage_order_detail sod ON sod.storage_order_id = so.id AND sod.status = 1
+INNER JOIN t_storage s ON s.id = so.to_storage_id AND s.customer_id in  (select c.id from t_account_child_customer acc
+                                         inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                        where account_id = ?account_id)
+WHERE so.storage_order_status in (11) AND s.customer_id = ?customer_id  AND sod.goods_id = ?goods_id  AND sod.category_id = ?category_id AND sod.type = ?goods_type
+{% if !start_time.IsZero() %}
+  and so.in_time>=to_date(?start_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_time.IsZero() %}
+  and so.in_time<to_date(?end_time,'YYYY-MM-DD')+1
+{% endif%}
+)
+SELECT
+t.*,ts.name storage_name,
+t.out_amount * t.out_unit_price out_total_price,
+t.in_amount * t.in_unit_price in_total_price,
+CASE WHEN t.type = 1 THEN '商品' ELSE '回收件' END goods_type_desc,
+g.name goods_name,g.goods_code,
+u1.name unit_name,spf.name specification_name,ctg.name category_name
+FROM tmp t
+LEFT JOIN t_storage ts ON ts.id = t.storage_id
+LEFT JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_specification spf ON spf.id = t.specification_id
+LEFT JOIN t_category ctg ON ctg.id = t.category_id
+LEFT JOIN t_unit u1 ON u1.id = t.unit_id
+ORDER BY cast(t.storage_order_id as integer) DESC
+

@@ -1,0 +1,427 @@
+[[query.statistical.summary.for.year.cnt]]
+WITH tmp as(
+  SELECT goods_id,customer_id,unit_id,category_id,
+  sum(CASE WHEN month1_price = -1 THEN 0 ELSE month1_price END ) month1_price,
+  sum(CASE WHEN month2_price = -1 THEN 0 ELSE month2_price END ) month2_price,
+  sum(CASE WHEN month3_price = -1 THEN 0 ELSE month3_price END ) month3_price,
+  sum(CASE WHEN month4_price = -1 THEN 0 ELSE month4_price END ) month4_price,
+  sum(CASE WHEN month5_price = -1 THEN 0 ELSE month5_price END ) month5_price,
+  sum(CASE WHEN month6_price = -1 THEN 0 ELSE month6_price END ) month6_price,
+  sum(CASE WHEN month7_price = -1 THEN 0 ELSE month7_price END ) month7_price,
+  sum(CASE WHEN month8_price = -1 THEN 0 ELSE month8_price END ) month8_price,
+  sum(CASE WHEN month9_price = -1 THEN 0 ELSE month9_price END ) month9_price,
+  sum(CASE WHEN month10_price = -1 THEN 0 ELSE month10_price END ) month10_price,
+  sum(CASE WHEN month11_price = -1 THEN 0 ELSE month11_price END ) month11_price,
+  sum(CASE WHEN month12_price = -1 THEN 0 ELSE month12_price END ) month12_price
+FROM (
+  SELECT
+goods_id,customer_id,unit_id,category_id,
+CASE WHEN yearMonth = '01' THEN sale_to_customer_price ELSE -1 END month1_price,
+CASE WHEN yearMonth = '02' THEN sale_to_customer_price ELSE -1 END month2_price,
+CASE WHEN yearMonth = '03' THEN sale_to_customer_price ELSE -1 END month3_price,
+CASE WHEN yearMonth = '04' THEN sale_to_customer_price ELSE -1 END month4_price,
+CASE WHEN yearMonth = '05' THEN sale_to_customer_price ELSE -1 END month5_price,
+CASE WHEN yearMonth = '06' THEN sale_to_customer_price ELSE -1 END month6_price,
+CASE WHEN yearMonth = '07' THEN sale_to_customer_price ELSE -1 END month7_price,
+CASE WHEN yearMonth = '08' THEN sale_to_customer_price ELSE -1 END month8_price,
+CASE WHEN yearMonth = '09' THEN sale_to_customer_price ELSE -1 END month9_price,
+CASE WHEN yearMonth = '10' THEN sale_to_customer_price ELSE -1 END month10_price,
+CASE WHEN yearMonth = '11' THEN sale_to_customer_price ELSE -1 END month11_price,
+CASE WHEN yearMonth = '12' THEN sale_to_customer_price ELSE -1 END month12_price
+FROM (
+  SELECT rfd.goods_id,c2.id customer_id,rfd.unit_id,rfd.sale_to_customer_price,rf.expired_time,rf.category_id,
+  row_number()OVER (PARTITION BY rfd.goods_id,c2.id,rfd.unit_id,t.yearMonth ORDER BY c1.level DESC , rf.expired_time DESC ) row_num,
+  t.yearMonth
+FROM t_rating_form rf
+INNER JOIN t_rating_form_detail rfd ON rfd.rating_form_id = rf.id AND rfd.status = 1
+INNER JOIN t_customer c1 ON c1.id = rf.customer_id
+INNER JOIN t_customer c2 ON c2.leaf = 1 AND (c2.id = c1.id OR c2.tree_ids LIKE '%,'||c1.id||',%' OR  c2.tree_ids LIKE '%,'||c1.id OR  c2.tree_ids LIKE c1.id||',%' OR  c2.tree_ids LIKE c1.id)
+INNER JOIN (select to_char(month,'MM') yearMonth,rf.id,month
+from t_rating_form rf ,generate_series(
+(rf.take_effect_time),--查询开始日期
+(rf.expired_time),--查询结束日期
+    '1 month'--间隔
+) s(month)
+WHERE rf.rating_form_status = 3 AND rf.expired_time < now() AND rf.customer_id !='' AND to_char(month,'YYYY') = ?year
+{% if temp %}
+ and rf.customer_id in (
+   select c.id from t_account_child_customer acc
+   inner join t_customer c on c.status != 3  and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+   where account_id = ?account_id)
+{% endif%}
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+) t ON t.id = rf.id
+left join t_goods g on g.id = rfd.goods_id
+WHERE rf.rating_form_status = 3 AND rf.expired_time < now() AND rf.customer_id !=''
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+  {% if keyword!="" %}
+     and ( g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+  {% endif%}
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+GROUP BY  rfd.goods_id,c2.id,rfd.unit_id,rfd.sale_to_customer_price,t.yearMonth,rf.expired_time,rf.category_id,c1.level
+) t1 WHERE t1.row_num = 1
+) t2 GROUP BY goods_id,customer_id,unit_id,category_id
+)
+SELECT count(1) cnt
+FROM tmp t
+LEFT JOIN t_customer c1 ON c1.id = t.customer_id
+LEFT JOIN t_customer c2 ON c1.parent_customer_id = c2.id
+LEFT JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_unit u ON u.id = t.unit_id
+LEFT JOIN t_category tcg ON tcg.id = t.category_id
+LEFT JOIN t_specification spf ON spf.id = g.specification_id
+WHERE 1=1
+{% if parent_customer_id!="" %}
+and c1.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if customer_id!="" %}
+and c1.id=?customer_id
+{% endif%}
+
+[[query.statistical.summary.for.year.list]]
+WITH tmp as(
+  SELECT goods_id,customer_id,unit_id,category_id,
+  sum(CASE WHEN month1_price = -1 THEN 0 ELSE month1_price END ) month1_price,
+  sum(CASE WHEN month2_price = -1 THEN 0 ELSE month2_price END ) month2_price,
+  sum(CASE WHEN month3_price = -1 THEN 0 ELSE month3_price END ) month3_price,
+  sum(CASE WHEN month4_price = -1 THEN 0 ELSE month4_price END ) month4_price,
+  sum(CASE WHEN month5_price = -1 THEN 0 ELSE month5_price END ) month5_price,
+  sum(CASE WHEN month6_price = -1 THEN 0 ELSE month6_price END ) month6_price,
+  sum(CASE WHEN month7_price = -1 THEN 0 ELSE month7_price END ) month7_price,
+  sum(CASE WHEN month8_price = -1 THEN 0 ELSE month8_price END ) month8_price,
+  sum(CASE WHEN month9_price = -1 THEN 0 ELSE month9_price END ) month9_price,
+  sum(CASE WHEN month10_price = -1 THEN 0 ELSE month10_price END ) month10_price,
+  sum(CASE WHEN month11_price = -1 THEN 0 ELSE month11_price END ) month11_price,
+  sum(CASE WHEN month12_price = -1 THEN 0 ELSE month12_price END ) month12_price
+FROM (
+  SELECT
+goods_id,customer_id,unit_id,category_id,
+CASE WHEN yearMonth = '01' THEN sale_to_customer_price ELSE -1 END month1_price,
+CASE WHEN yearMonth = '02' THEN sale_to_customer_price ELSE -1 END month2_price,
+CASE WHEN yearMonth = '03' THEN sale_to_customer_price ELSE -1 END month3_price,
+CASE WHEN yearMonth = '04' THEN sale_to_customer_price ELSE -1 END month4_price,
+CASE WHEN yearMonth = '05' THEN sale_to_customer_price ELSE -1 END month5_price,
+CASE WHEN yearMonth = '06' THEN sale_to_customer_price ELSE -1 END month6_price,
+CASE WHEN yearMonth = '07' THEN sale_to_customer_price ELSE -1 END month7_price,
+CASE WHEN yearMonth = '08' THEN sale_to_customer_price ELSE -1 END month8_price,
+CASE WHEN yearMonth = '09' THEN sale_to_customer_price ELSE -1 END month9_price,
+CASE WHEN yearMonth = '10' THEN sale_to_customer_price ELSE -1 END month10_price,
+CASE WHEN yearMonth = '11' THEN sale_to_customer_price ELSE -1 END month11_price,
+CASE WHEN yearMonth = '12' THEN sale_to_customer_price ELSE -1 END month12_price
+FROM (
+  SELECT rfd.goods_id,c2.id customer_id,rfd.unit_id,rfd.sale_to_customer_price,rf.expired_time,rf.category_id,
+  row_number()OVER (PARTITION BY rfd.goods_id,c2.id,rfd.unit_id,t.yearMonth ORDER BY c1.level DESC , rf.expired_time DESC ) row_num,
+  t.yearMonth
+FROM t_rating_form rf
+INNER JOIN t_rating_form_detail rfd ON rfd.rating_form_id = rf.id AND rfd.status = 1
+INNER JOIN t_customer c1 ON c1.id = rf.customer_id
+INNER JOIN t_customer c2 ON c2.leaf = 1 AND (c2.id = c1.id OR c2.tree_ids LIKE '%,'||c1.id||',%' OR  c2.tree_ids LIKE '%,'||c1.id OR  c2.tree_ids LIKE c1.id||',%' OR  c2.tree_ids LIKE c1.id)
+INNER JOIN (select to_char(month,'MM') yearMonth,rf.id,month
+from t_rating_form rf ,generate_series(
+(rf.take_effect_time),--查询开始日期
+(rf.expired_time),--查询结束日期
+    '1 month'--间隔
+) s(month)
+WHERE rf.rating_form_status = 3 AND rf.expired_time < now() AND rf.customer_id !='' AND to_char(month,'YYYY') = ?year
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+) t ON t.id = rf.id
+left join t_goods g on g.id = rfd.goods_id
+WHERE rf.rating_form_status = 3 AND rf.expired_time < now() AND rf.customer_id !=''
+{% if temp %}
+ and rf.customer_id in (
+   select c.id from t_account_child_customer acc
+   inner join t_customer c on c.status != 3  and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+   where account_id = ?account_id)
+{% endif%}
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+  {% if keyword!="" %}
+     and ( g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+  {% endif%}
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+GROUP BY  rfd.goods_id,c2.id,rfd.unit_id,rfd.sale_to_customer_price,t.yearMonth,rf.expired_time,rf.category_id,c1.level
+) t1 WHERE t1.row_num = 1
+) t2 GROUP BY goods_id,customer_id,unit_id,category_id
+)
+SELECT c1.name customer_name,c2.name parent_customer_name,g.goods_code,g.name goods_name,tcg.name category_name,spf.name specification_name,u.name unit_name,
+t.*
+FROM tmp t
+LEFT JOIN t_customer c1 ON c1.id = t.customer_id
+LEFT JOIN t_customer c2 ON c1.parent_customer_id = c2.id
+LEFT JOIN t_goods g ON g.id = t.goods_id
+LEFT JOIN t_unit u ON u.id = t.unit_id
+LEFT JOIN t_category tcg ON tcg.id = t.category_id
+LEFT JOIN t_specification spf ON spf.id = g.specification_id
+WHERE 1=1
+{% if parent_customer_id!="" %}
+and c1.parent_customer_id=?parent_customer_id
+{% endif%}
+{% if customer_id!="" %}
+and c1.id=?customer_id
+{% endif%}
+ORDER BY cast(c2.id as integer),cast(c1.id as integer),cast(t.goods_id as integer)  limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[select.year.by.statistical.summary.list]]
+with tmp as(
+SELECT DISTINCT to_char(take_effect_time,'YYYY') as year from t_rating_form
+WHERE rating_form_status = 3 AND expired_time < now() AND customer_id !=''
+UNION
+SELECT DISTINCT to_char(expired_time,'YYYY') as year from t_rating_form
+WHERE rating_form_status = 3 AND expired_time < now() AND customer_id !=''
+)
+select DISTINCT year from tmp order by year desc
+
+[[get.district.summary.cnt]]
+WITH tmp as(
+SELECT DISTINCT rfd.goods_id,rfd.unit_id,rf.category_id FROM t_rating_form rf
+INNER JOIN t_rating_form_detail rfd ON rfd.rating_form_id = rf.id and rfd.status = 1
+ where rf.is_using = TRUE AND rf.status = 1 and rf.rating_form_status = 3
+ {% if temp %}
+  and rf.customer_id in (
+    select c.id from t_account_child_customer acc
+    inner join t_customer c on c.status != 3  and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+    where account_id = ?account_id)
+ {% endif%}
+ order by rfd.goods_id,rfd.unit_id,rf.category_id
+)
+select count(1) cnt
+ from tmp t
+INNER JOIN  t_rating_form rf ON rf.is_using = TRUE AND rf.status = 1 and rf.rating_form_status = 3 AND rf.category_id = t.category_id
+INNER JOIN t_rating_form_detail rfd ON rfd.rating_form_id = rf.id and rfd.status = 1 AND t.goods_id = rfd.goods_id AND rfd.unit_id = t.unit_id
+INNER JOIN t_customer c1 on c1.id = rf.customer_id
+LEFT JOIN t_goods g on g.id = t.goods_id
+LEFT JOIN t_unit u ON u.id = t.unit_id
+LEFT JOIN t_category tcg ON tcg.id = t.category_id
+LEFT JOIN t_specification spf ON spf.id = g.specification_id
+where 1=1
+{% if temp %}
+ and rf.customer_id in (
+   select c.id from t_account_child_customer acc
+   inner join t_customer c on c.status != 3  and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+   where account_id = ?account_id)
+{% endif%}
+{% if parent_customer_id!="" %}
+and ( rf.customer_id=?parent_customer_id  OR c1.tree_ids LIKE '%,'||?parent_customer_id||',%' OR  c1.tree_ids LIKE '%,'||?parent_customer_id OR  c1.tree_ids LIKE ?parent_customer_id||',%' OR  c1.tree_ids LIKE ?parent_customer_id)
+{% endif%}
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+  {% if keyword!="" %}
+     and ( g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+  {% endif%}
+
+[[get.district.summary.list]]
+WITH tmp as(
+SELECT DISTINCT rfd.goods_id,rfd.unit_id,rf.category_id FROM t_rating_form rf
+INNER JOIN t_rating_form_detail rfd ON rfd.rating_form_id = rf.id and rfd.status = 1
+ where rf.is_using = TRUE AND rf.status = 1 and rf.rating_form_status = 3
+ {% if temp %}
+  and rf.customer_id in (
+    select c.id from t_account_child_customer acc
+    inner join t_customer c on c.status != 3  and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+    where account_id = ?account_id)
+ {% endif%}
+ order by rfd.goods_id,rfd.unit_id,rf.category_id
+)
+select c1.id parent_customer_id,c1.name parent_customer_name,rfd.sale_to_customer_price price,
+g.goods_code,g.name goods_name,u.name unit_name,tcg.name category_name,spf.name specification_name from tmp t
+INNER JOIN  t_rating_form rf ON rf.is_using = TRUE AND rf.status = 1 and rf.rating_form_status = 3 AND rf.category_id = t.category_id
+INNER JOIN t_rating_form_detail rfd ON rfd.rating_form_id = rf.id and rfd.status = 1 AND t.goods_id = rfd.goods_id AND rfd.unit_id = t.unit_id
+INNER JOIN t_customer c1 on c1.id = rf.customer_id
+LEFT JOIN t_goods g on g.id = t.goods_id
+LEFT JOIN t_unit u ON u.id = t.unit_id
+LEFT JOIN t_category tcg ON tcg.id = t.category_id
+LEFT JOIN t_specification spf ON spf.id = g.specification_id
+where 1=1
+{% if temp %}
+ and rf.customer_id in (
+   select c.id from t_account_child_customer acc
+   inner join t_customer c on c.status != 3 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+   where account_id = ?account_id)
+{% endif%}
+{% if parent_customer_id!="" %}
+and ( rf.customer_id=?parent_customer_id  OR c1.tree_ids LIKE '%,'||?parent_customer_id||',%' OR  c1.tree_ids LIKE '%,'||?parent_customer_id OR  c1.tree_ids LIKE ?parent_customer_id||',%' OR  c1.tree_ids LIKE ?parent_customer_id)
+{% endif%}
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+  {% if keyword!="" %}
+     and ( g.name ilike '%' || ?keyword || '%' or CnFirstChar(g.name) ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+  {% endif%}
+ ORDER BY cast(c1.id as integer),cast(t.unit_id as integer) limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[get.rating.form.cnt]]
+select count(1) cnt
+ from t_rating_form rf
+left join t_customer c1 on c1.id = rf.customer_id
+left join t_category tc on tc.id = rf.category_id
+WHERE rf.rating_form_status = 3 and rf.status = 1
+{% if temp %}
+ and rf.customer_id in (
+      select c.id from t_account_child_customer acc
+      inner join t_customer c on c.status != 3 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+       where account_id = ?account_id)
+{% endif%}
+{% if parent_customer_id!="" %}
+and (c1.id=?parent_customer_id OR c1.tree_ids LIKE '%,'||?parent_customer_id||',%' OR  c1.tree_ids LIKE '%,'||?parent_customer_id OR  c1.tree_ids LIKE ?parent_customer_id||',%' OR  c1.tree_ids LIKE ?parent_customer_id )
+{% endif%}
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+{% if !start_take_time.IsZero() %}
+and rf.take_effect_time>=to_date(?start_take_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_take_time.IsZero() %}
+and rf.take_effect_time<to_date(?end_take_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if !start_expired_time.IsZero() %}
+and rf.expired_time>=to_date(?start_expired_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_expired_time.IsZero() %}
+and rf.take_effect_time<to_date(?end_expired_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if keyword!="" %}
+and rf.name ilike '%' || ?keyword || '%'
+{% endif%}
+
+[[get.rating.form.list]]
+select  row_number() OVER(order by rf.create_time desc,cast(rf.id as integer) ) row_num,
+rf.id rating_form_id,rf.name rating_form_name,rf.take_effect_time,rf.expired_time,rf.memo,
+c1.name parent_customer_name,c1.id parent_customer_id,
+ tc.name category_name
+ from t_rating_form rf
+left join t_customer c1 on c1.id = rf.customer_id
+left join t_category tc on tc.id = rf.category_id
+WHERE rf.rating_form_status = 3 and rf.status = 1
+{% if temp %}
+ and rf.customer_id in (
+   select c.id from t_account_child_customer acc
+   inner join t_customer c on c.status != 3  and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+   where account_id = ?account_id)
+{% endif%}
+{% if parent_customer_id!="" %}
+and (c1.id=?parent_customer_id OR c1.tree_ids LIKE '%,'||?parent_customer_id||',%' OR  c1.tree_ids LIKE '%,'||?parent_customer_id OR  c1.tree_ids LIKE ?parent_customer_id||',%' OR  c1.tree_ids LIKE ?parent_customer_id )
+{% endif%}
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+{% if !start_take_time.IsZero() %}
+and rf.take_effect_time>=to_date(?start_take_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_take_time.IsZero() %}
+and rf.take_effect_time<to_date(?end_take_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if !start_expired_time.IsZero() %}
+and rf.expired_time>=to_date(?start_expired_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_expired_time.IsZero() %}
+and rf.take_effect_time<to_date(?end_expired_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if keyword!="" %}
+and rf.name ilike '%' || ?keyword || '%'
+{% endif%}
+ ORDER BY rf.create_time desc,cast(rf.id as integer) limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[get.rating.form.detail.cnt]]
+with tmp as(
+SELECT rfd.*,g.name goods_name,g.goods_code,ctg.name category_name,spf.name specification_name,u1.name unit_name,u2.name main_unit_name,
+CASE WHEN rfd.need_ratity_amount = 1 THEN '是' else '否' END need_ratity_amount_desc,
+CASE WHEN rfd.can_allopatric_allot = 1 THEN '是' else '否' END can_allopatric_allot_desc
+ FROM t_rating_form_detail rfd
+ LEFT JOIN t_rating_form rf on rf.id = rfd.rating_form_id
+LEFT JOIN t_goods g ON g.id = rfd.goods_id
+LEFT JOIN t_category ctg on ctg.id = rf.category_id
+LEFT JOIN t_specification spf on spf.id = g.specification_id
+LEFT JOIN t_unit u1 on u1.id = rfd.unit_id
+LEFT JOIN t_unit u2 on u2.id = g.unit_id
+WHERE rfd.rating_form_id = ?rating_form_id
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+{% if keyword!="" %}
+and( g.name ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+{% endif%}
+)
+SELECT count(1) cnt FROM tmp t
+
+[[get.rating.form.detail.list]]
+with tmp as(
+SELECT rfd.*,g.name goods_name,g.goods_code,ctg.name category_name,spf.name specification_name,u1.name unit_name,u2.name main_unit_name,
+CASE WHEN rfd.need_ratity_amount = 1 THEN '是' else '否' END need_ratity_amount_desc,
+CASE WHEN rfd.can_allopatric_allot = 1 THEN '是' else '否' END can_allopatric_allot_desc
+ FROM t_rating_form_detail rfd
+ LEFT JOIN t_rating_form rf on rf.id = rfd.rating_form_id
+LEFT JOIN t_goods g ON g.id = rfd.goods_id
+LEFT JOIN t_category ctg on ctg.id = rf.category_id
+LEFT JOIN t_specification spf on spf.id = g.specification_id
+LEFT JOIN t_unit u1 on u1.id = rfd.unit_id
+LEFT JOIN t_unit u2 on u2.id = g.unit_id
+WHERE rfd.rating_form_id = ?rating_form_id
+{% if cate_lv1_id!="" %}
+and g.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if cate_lv2_id!="" %}
+and g.cate_lv2_id=?cate_lv2_id
+{% endif%}
+{% if prd_id!="" %}
+and g.prd_id=?prd_id
+{% endif%}
+{% if category_id!="" %}
+and rf.category_id=?category_id
+{% endif%}
+{% if keyword!="" %}
+and( g.name ilike '%' || ?keyword || '%' or g.goods_code ilike '%' || ?keyword || '%' )
+{% endif%}
+ ORDER BY cast(rfd.id as integer) limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT t.*,(select string_agg(ts.name,',') from t_rating_form_goods_supplier rfgs
+INNER JOIN t_supplier ts on ts.id = rfgs.supplier_id
+INNER JOIN t_supplier_goods_config sgc on sgc.supplier_id = ts.id and sgc.goods_id = t.goods_id and sgc.status = 1
+WHERE rfgs.rating_form_detail_id = t.id and rfgs.status = 1
+) supplier_names FROM tmp t
+ ORDER BY cast(t.id as integer)
+

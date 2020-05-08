@@ -1,0 +1,111 @@
+package resource
+
+import (
+	"fmt"
+	"git.proway.tech/wallstreet/exchange/internal/errors"
+	"git.proway.tech/wallstreet/exchange/internal/glog"
+	"github.com/go-redis/redis"
+	"time"
+)
+
+func NewRedis(opt *redis.Options) (*redis.Client, func(), error) {
+	c := redis.NewClient(opt)
+
+	err := c.Ping().Err()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c, func() {
+		glog.Info("[main] clean up redis")
+		err := c.Close()
+		if err != nil {
+			errors.LogError(err)
+		}
+	}, nil
+}
+
+type RedisLock struct {
+	resource string
+	token    string
+	conn     *redis.Client
+	timeout  int
+	Auth     string
+	Addr     string
+	DB       int
+}
+
+func (lock *RedisLock) tryLock() (ok bool, err error) {
+	success, err := lock.conn.SetNX(lock.key(), lock.token, 10*time.Second).Result()
+	//为flase说明已经存在
+	if success == false {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (lock *RedisLock) Unlock() (err error) {
+	_, err = lock.conn.Do("del", lock.key()).Int64()
+	if err != nil {
+		glog.Error("RedisLock:Unlock错误")
+	}
+	return
+}
+
+func (lock *RedisLock) key() string {
+	return fmt.Sprintf("redislock:%s", lock.resource)
+}
+
+func TryLock(conn *redis.Client, resource string, token string, DefaulTimeout int) (lock *RedisLock, ok bool, err error) {
+	return TryLockWithTimeout(conn, resource, token, DefaulTimeout)
+}
+
+func TryLockWithTimeout(conn *redis.Client, resource string, token string, timeout int) (lock *RedisLock, ok bool, err error) {
+	lock = &RedisLock{resource: resource, token: token, conn: conn, timeout: timeout}
+
+	ok, err = lock.tryLock()
+
+	if !ok || err != nil {
+		lock = nil
+	}
+
+	return
+}
+
+func NewRedisPool(lock *RedisLock) *RedisLock {
+	opt := &redis.Options{
+		Addr:     lock.Addr,
+		Password: lock.Auth,
+		DB:       lock.DB,
+	}
+	c := redis.NewClient(opt)
+
+	err := c.Ping().Err()
+	if err != nil {
+		return nil
+	}
+
+	lock.conn = c
+	return lock
+}
+
+func (lock *RedisLock) NewReidsLock(f func(), lockString string) error {
+
+	lock, ok, err := TryLock(lock.conn, lockString, "token", int(10))
+	if err != nil {
+		return errors.New("redis:" + err.Error())
+	}
+	//已经有访问的了退出接口
+	if !ok {
+		return errors.New("当前人数过多，请稍后操作")
+	}
+
+	//如果要测试的话 自己加定时器
+	f()
+
+	defer lock.Unlock()
+	return nil
+}

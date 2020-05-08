@@ -1,0 +1,58 @@
+[[show]]
+select * from t_demo where status in (1,2) and id=?id
+
+[[list.cnt]]
+select count(1) cnt from t_demo where status in (1,2)
+{% if name != "" %}
+   and name like '%'|| ?name ||'%'
+{% endif %}
+
+[[list]]
+select * from t_demo where status in (1,2)
+{% if name!="" %}
+ and name like '%'|| ?name ||'%'
+{% endif%}
+order by update_time desc limit ?page_size offset (?page_num - 1) * ?page_size
+
+[[operlog.list.cnt]]
+select count(1) cnt from t_demo_log where 1=1
+{% if oper_type != 0 %}
+   and oper_type = ?oper_type
+{% endif %}
+
+[[operlog.list]]
+with pg as (
+select * from t_demo_log where 1=1
+{% if oper_type != 0 %}
+   and oper_type = ?oper_type
+{% endif %}
+order by create_time desc limit ?page_size offset (?page_num - 1) * ?page_size)
+select d.name,pg.demo_id,pg.id,pg.oper_type,pg.create_time,mp.meta_desc oper_type_desc from pg
+left join t_demo d on pg.id=d.id
+left join t_metadata_map mp on mp.meta_code='demo_oper_type' and mp.meta_val=pg.oper_type
+
+[[operlog.nopage.list]]
+select * from t_demo_log where 1=1
+{% if oper_type != 0 %}
+   and oper_type = ?oper_type
+{% endif %}
+order by create_time desc
+
+[[show.empty.time]]
+select * from t_demo where status in (1,2) and id=?id
+{% if !create_time.IsZero() %}
+and create_time>?create_time
+order by create_time
+{% endif %}
+
+[[show.empty.time2]]
+select * from t_demo where status in (1,2) and id=?id
+{% if create_time.IsZero() %}
+order by id
+{% endif %}
+
+[[show.empty.time3]]
+select * from t_demo where status in (1,2) and id=?id
+{% if update_time.IsZero() %}
+order by update_time
+{% endif %}

@@ -1,0 +1,6 @@
+[[query.roles.list.by.ids]]
+select * from t_role where id in ('0'
+   {% for role_id in role_ids %}
+       ,'{{role_id}}'
+   {% endfor %}
+)

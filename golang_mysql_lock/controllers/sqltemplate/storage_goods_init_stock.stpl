@@ -1,0 +1,92 @@
+[[insert.storage.goods.init.stock]]
+with tem as (
+  select
+    case when c.storage_id NOTNULL then  c.storage_id else d.storage_id end as storage_id,
+    case when c.goods_id NOTNULL then  c.goods_id else d.goods_id end as goods_id,
+    case when c.unit_id NOTNULL then  c.unit_id else d.unit_id end as unit_id,
+    case when c.type NOTNULL then  c.type else d.type end as type,
+    COALESCE(c.init_amount, 0) + COALESCE(d.surplus_amount, 0) as new_init_stock_num,
+    COALESCE(c.stock_finance, 0) + COALESCE(d.rest_amount, 0) as new_init_stock_amount
+  from (
+    select storage_id ,goods_id,unit_id,type,COALESCE(stock_num, 0) init_amount,
+    COALESCE(stock_finance, 0) stock_finance from t_storage_goods_init_stock
+    where status = 1 and carry_over_log_id = (
+        select id from t_carry_over_log
+        where customer_id = ?customer_id and id != ?carry_over_log_id
+            and cast(id as integer ) < cast(?carry_over_log_id as integer )
+        order by  cast(id as integer ) desc
+    )
+  ) c FULL OUTER JOIN
+  (
+    select COALESCE(a.income_amount, 0) - COALESCE(b.expend_amount, 0) - COALESCE(e.shipped_amount, 0) surplus_amount,
+       COALESCE(a.income_finance, 0) - COALESCE(b.expend_finance, 0) - COALESCE(e.shipped_finance, 0) rest_amount,
+       case when a.to_storage_id NOTNULL then  a.to_storage_id
+         when b.from_storage_id NOTNULL then b.from_storage_id
+         when e.from_storage_id NOTNULL then e.from_storage_id end as storage_id,
+       case when a.goods_id NOTNULL then  a.goods_id
+         when b.goods_id NOTNULL then b.goods_id
+         when e.goods_id NOTNULL then e.goods_id end as goods_id,
+       case when a.type NOTNULL then  a.type
+         when b.type NOTNULL then b.type
+         when e.type NOTNULL then e.type end as type,
+       case when a.unit_id NOTNULL then  a.unit_id
+         when b.unit_id NOTNULL then b.unit_id
+         when e.unit_id NOTNULL then e.unit_id end as unit_id
+    from
+      (
+         select sum(COALESCE(sod.in_amount, 0)) income_amount,sum(COALESCE(sod.in_amount * sod.price /100, 0)) income_finance,
+            so.to_storage_id ,sod.goods_id ,sod.unit_id,sod.type
+         from t_storage_order so
+         left join t_storage_order_detail sod on so.id= sod.storage_order_id and sod.status = 1
+         where to_char(so.in_time,'YYYY-MM') = to_char(now() - INTERVAL'1 month','YYYY-MM')
+            and so.is_to_carry_over = false and so.storage_order_status = 11
+            and so.to_storage_id in (select id from t_storage where customer_id = ?customer_id)
+         group by so.to_storage_id ,sod.goods_id ,sod.unit_id,sod.type
+      ) a
+      FULL OUTER JOIN
+      (
+        select sum(COALESCE(sod.out_amount, 0)) expend_amount,sum(COALESCE(sod.out_amount * sod.price /100, 0)) expend_finance,
+            so.from_storage_id ,sod.goods_id ,sod.unit_id,sod.type
+        from t_storage_order so
+        left join t_storage_order_detail sod on so.id= sod.storage_order_id and sod.status = 1
+        where to_char(so.out_time,'YYYY-MM') = to_char(now() - INTERVAL'1 month','YYYY-MM')
+           and so.is_from_carry_over = false and so.storage_order_status = 11
+           and so.from_storage_id in (select id from t_storage where customer_id = ?customer_id)
+        group by so.from_storage_id ,sod.goods_id ,sod.unit_id,sod.type
+      ) b on a.to_storage_id = b.from_storage_id and a.goods_id = b.goods_id and a.unit_id = b.unit_id and a.type = b.type
+      FULL OUTER JOIN
+      (
+        select sum(COALESCE(sod.out_amount, 0)) shipped_amount,sum(COALESCE(sod.out_amount * sod.price /100, 0)) shipped_finance,
+          so.from_storage_id ,sod.goods_id ,sod.unit_id,sod.type
+        from t_storage_order so
+        left join t_storage_order_detail sod on so.id= sod.storage_order_id and sod.status = 1
+        where to_char(so.out_time,'YYYY-MM') = to_char(now() - INTERVAL'1 month','YYYY-MM')
+           and so.is_from_carry_over = false and so.storage_order_status = 8
+           and so.from_storage_id in (select id from t_storage where customer_id = ?customer_id)
+        group by so.from_storage_id ,sod.goods_id ,sod.unit_id,sod.type
+      ) e on a.to_storage_id = e.from_storage_id and a.goods_id = e.goods_id and a.unit_id = e.unit_id and a.type = e.type
+  ) d on c.storage_id = d.storage_id and c.goods_id = d.goods_id and c.unit_id = d.unit_id and c.type = d.type
+)
+insert into t_storage_goods_init_stock( storage_id, goods_id,unit_id,type,stock_num,stock_finance, carry_over_log_id,status)
+  (select storage_id,goods_id,unit_id,type,new_init_stock_num,new_init_stock_amount,?carry_over_log_id,1 from tem)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

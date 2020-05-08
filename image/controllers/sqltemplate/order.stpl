@@ -1,0 +1,2521 @@
+[[query.order.for.center.cnt]]
+select count(1) cnt FROM t_order o
+INNER JOIN t_goods tg ON o.goods_id = tg.id
+INNER JOIN t_customer c ON c.id = o.customer_id
+LEFT  JOIN t_supplier s ON s.id = o.supplier_id
+Left  JOIN t_supplier_alias sa ON o.supplier_alias_id = sa.id
+{% if temp=="1" %}
+INNER JOIN  t_account_role_cust_priv arcp ON arcp.account_id = ?account_id and arcp.role_id = (select id from t_role where role_code = 'cnt_order_admin') and arcp.customer_id = o.customer_id and arcp.status = 1
+{% endif%}
+where 1=1
+{% if order_status==3 %}
+and o.dispatch_status!=1 and o.order_status=1
+{% endif%}
+{% if order_status==1 %}
+and o.dispatch_status=1 and o.order_status=1
+{% endif%}
+{% if order_status==11 %}
+and ( o.order_status=11 or o.order_status=15 or o.order_status=14)
+{% endif%}
+{% if order_status!=0 &&  order_status!=3 && order_status!=1 &&  order_status!=11 %}
+and o.order_status=?order_status
+{% endif%}
+{% if cate_lv1_id!="" %}
+and tg.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if !start_order_time.IsZero() %}
+and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_order_time.IsZero() %}
+and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if !start_finish_time.IsZero() %}
+and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_finish_time.IsZero() %}
+and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%'  or s.name ilike '%'||?keyword||'%'   or sa.supplier_alias_name ilike '%'||?keyword||'%'
+     or CnFirstChar(c.name) ilike '%'||?keyword||'%'  or CnFirstChar(s.name) ilike '%'||?keyword||'%'
+     )
+{% endif%}
+{% if goods_name!="" %}
+   and (o.goods_name ilike '%'||?goods_name||'%' or CnFirstChar(o.goods_name) ilike '%'||?goods_name||'%')
+{% endif%}
+
+
+[[query.order.for.center.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_status_change_reason,
+      o.order_sub_no,
+      o.goods_name,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount,
+      o.w_receive_amount,
+      o.s_receive_amount,
+      o.dispatch_amount,
+      o.order_memo ,
+      case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+      CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+            CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+         ELSE
+           CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+        END time_ordering,
+      o.order_time,
+      o.ship_time,
+      o.order_status,
+      o.finish_time,
+      o.customer_id,
+      o.supplier_id,
+      w.name warehouse_name,
+      o.buy_from_supplier_price,
+      o.dispatch_status,
+      o.ship_type,
+      o.supplier_alias_id,
+      o.sale_to_customer_price,
+      CASE WHEN    osr.ship_status_num ISNULL THEN 0 ELSE  osr.ship_status_num END ship_status_num
+    FROM t_order o
+    INNER JOIN  t_goods tg ON o.goods_id = tg.id
+    INNER JOIN  t_customer c ON  c.id = o.customer_id
+    LEFT  JOIN  t_supplier s ON  s.id = o.supplier_id
+    LEFT  JOIN  t_warehouse w ON w.id = o.warehouse_id
+    Left  JOIN t_supplier_alias sa ON o.supplier_alias_id = sa.id
+    LEFT JOIN (SELECT count(ship_status) ship_status_num,order_id FROM t_order_ship_record WHERE  ship_status !=1 GROUP BY order_id ) osr ON osr.order_id = o.id
+    {% if temp=="1" %}
+     INNER JOIN  t_account_role_cust_priv arcp ON arcp.account_id = ?account_id and arcp.role_id = (select id from t_role where role_code = 'cnt_order_admin') and arcp.customer_id = o.customer_id and arcp.status = 1
+    {% endif%}
+    WHERE 1=1
+    {% if order_status==3 %}
+    and o.dispatch_status!=1 and o.order_status=1
+    {% endif%}
+    {% if order_status==1 %}
+    and o.dispatch_status=1 and o.order_status=1
+    {% endif%}
+    {% if order_status==11 %}
+    and ( o.order_status=11 or o.order_status=15  or o.order_status=14)
+    {% endif%}
+    {% if order_status!=0 &&  order_status!=3 && order_status!=1  &&  order_status!=11 %}
+    and o.order_status=?order_status
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%'  or s.name ilike '%'||?keyword||'%'  or sa.supplier_alias_name ilike '%'||?keyword||'%'
+        or CnFirstChar(c.name) ilike '%'||?keyword||'%'  or CnFirstChar(s.name) ilike '%'||?keyword||'%'
+     )
+    {% endif%}
+    {% if goods_name!="" %}
+    and (o.goods_name ilike '%'||?goods_name||'%' or CnFirstChar(o.goods_name) ilike '%'||?goods_name||'%')
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT
+  tmp.*,
+   case when tmp.dispatch_status!=1 and tmp.order_status=1 then '待派单'
+         when tmp.dispatch_status=1 and tmp.order_status=1 then tm.meta_desc
+         else tm.meta_desc end order_status_desc,
+   CASE WHEN tmp.order_status = 16 or (tmp.order_status = 1 and tmp.dispatch_status!=1 ) THEN 1
+   WHEN tmp.ship_type = 1 and tmp.ship_status_num != 0 THEN 3
+   WHEN tmp.ship_type = 1 THEN 7
+   ELSE 2 END operate_status,
+  tc.name                                          customer_name,
+  case when sa.id is null then ts.name else sa.supplier_alias_name end     supplier_name,
+  tmp.order_amount * tmp.buy_from_supplier_price   buy_money,
+     case when tmp.order_status=1 or tmp.order_status=2 then -1
+          when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+          when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+          else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money
+FROM tmp
+LEFT JOIN t_supplier ts ON tmp.supplier_id = ts.id
+INNER JOIN t_customer tc ON tmp.customer_id = tc.id
+INNER JOIN t_metadata_map tm ON tm.meta_code = 'order_status' AND tm.meta_val = tmp.order_status
+Left  JOIN t_supplier_alias sa ON tmp.supplier_alias_id = sa.id
+ORDER BY tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[query.order.for.center.export.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount,
+      o.dispatch_amount,
+      o.order_memo,
+      o.w_receive_amount,
+      o.s_receive_amount,
+      case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+      o.order_time,
+      o.ship_time,
+      o.order_status,
+      o.finish_time,
+      o.customer_id,
+      o.supplier_id,
+      o.dispatch_status,
+      o.buy_from_supplier_price,
+      o.sale_to_customer_price,
+      o.supplier_alias_id,
+      w.name warehouse_name
+       FROM t_order o
+       INNER JOIN t_goods tg ON o.goods_id = tg.id
+      INNER JOIN t_customer c ON c.id = o.customer_id
+     LEFT  JOIN t_supplier s ON s.id = o.supplier_id
+     LEFT JOIN t_warehouse w ON w.id = o.warehouse_id
+     Left  JOIN t_supplier_alias sa ON o.supplier_alias_id = sa.id
+     {% if temp=="1" %}
+      INNER JOIN  t_account_role_cust_priv arcp ON arcp.account_id = ?account_id and arcp.role_id = (select id from t_role where role_code = 'cnt_order_admin') and arcp.customer_id = o.customer_id and arcp.status = 1
+     {% endif%}
+     where 1=1
+    {% if order_status==3 %}
+       and o.dispatch_status!=1 and o.order_status=1
+       {% endif%}
+       {% if order_status==1 %}
+       and o.dispatch_status=1 and o.order_status=1
+       {% endif%}
+       {% if order_status==11 %}
+       and ( o.order_status=11 or o.order_status=15 or o.order_status=14)
+       {% endif%}
+       {% if order_status!=0 &&  order_status!=3 && order_status!=1  &&  order_status!=11 %}
+       and o.order_status=?order_status
+       {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%'  or s.name ilike '%'||?keyword||'%'  or sa.supplier_alias_name ilike '%'||?keyword||'%'
+           or CnFirstChar(c.name) ilike '%'||?keyword||'%'  or CnFirstChar(s.name) ilike '%'||?keyword||'%'
+        )
+    {% endif%}
+    {% if goods_name!="" %}
+    and o.goods_name ilike '%'||?goods_name||'%'
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+)
+SELECT
+  tmp.*,
+  case when tmp.dispatch_status!=1 and tmp.order_status=1 then '待派单'
+           when tmp.dispatch_status=1 and tmp.order_status=1 then tm.meta_desc
+           else tm.meta_desc end order_status_desc,
+  tc.name                                          customer_name,
+  case when sa.id is null then ts.name else sa.supplier_alias_name end  supplier_name,
+  tmp.order_amount * tmp.buy_from_supplier_price   buy_money,
+     case when tmp.order_status=1 or tmp.order_status=2 then -1
+          when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+          when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+          else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money,
+   tmp.order_amount * tmp.sale_to_customer_price   sale_money,
+     case when tmp.order_status=1 or tmp.order_status=2 then -1
+          when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+          when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+          else tmp.receive_amount * tmp.sale_to_customer_price end real_sale_money
+FROM tmp
+LEFT JOIN t_supplier ts ON tmp.supplier_id = ts.id
+INNER JOIN t_customer tc ON tmp.customer_id = tc.id
+INNER JOIN t_metadata_map tm ON tm.meta_code = 'order_status' AND tm.meta_val = tmp.order_status
+Left  JOIN t_supplier_alias sa ON tmp.supplier_alias_id = sa.id
+ORDER BY tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[query.order.for.supplier.cnt]]
+select count(1) cnt from t_order o ,t_goods tg ,t_customer c
+ {% if temp=="1" && order_status== 3%}
+   ,t_account_role_goods_priv argp
+ {% endif%}
+where o.goods_id=tg.id
+and o.supplier_id=?supplier_id and c.id = o.customer_id and order_status != 16
+ {% if temp=="1" && order_status== 3%}
+ and argp.account_id = ?account_id and argp.role_id = (select id from t_role where role_code = 'spl_order_admin') and argp.goods_id = o.goods_id and argp.status = 1
+ {% endif%}
+        {% if order_status==3 %}
+        and o.dispatch_status!=1 and o.order_status=1
+        {% endif%}
+        {% if order_status==1 %}
+        and o.dispatch_status=1 and o.order_status=1
+        {% endif%}
+        {% if order_status==11 %}
+        and (o.order_status=11 or o.order_status = 15 or o.order_status = 14)
+        {% endif%}
+        {% if order_status!=3 && order_status!=0  && order_status!=1  && order_status!=11 %}
+        and o.order_status=?order_status
+        {% endif%}
+        {% if cate_lv1_id!="" %}
+        and tg.cate_lv1_id=?cate_lv1_id
+        {% endif%}
+        {% if warehouse_id=="0" %}
+        and dispatch_type=1
+        {% endif%}
+        {% if warehouse_id!="" && warehouse_id!="0" %}
+        and o.warehouse_id=?warehouse_id
+        {% endif%}
+        {% if !start_order_time.IsZero() %}
+        and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+        {% endif%}
+        {% if !end_order_time.IsZero() %}
+        and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+        {% endif%}
+        {% if !start_order_sign_time.IsZero() %}
+        and o.order_sign_time>=to_date(?start_order_sign_time,'YYYY-MM-DD')
+        {% endif%}
+        {% if !end_order_sign_time.IsZero() %}
+        and o.order_sign_time<to_date(?end_order_sign_time,'YYYY-MM-DD')+1
+        {% endif%}
+         {% if !start_ship_time.IsZero() %}
+        and o.SHIP_TIME>=to_timestamp(?start_ship_time,'YYYY-MM-DD hh24:mi:ss')
+        {% endif%}
+        {% if !end_ship_time.IsZero() %}
+        and o.SHIP_TIME<=to_timestamp(?end_ship_time,'YYYY-MM-DD hh24:mi:ss')
+        {% endif%}
+        {% if areaIdsLen != 0 %}
+         and customer_id in (
+         SELECT customer_id AS name FROM  t_province p ,
+            (SELECT c.id,c.province_id,c.name,b.customer_id FROM t_city c,
+                (SELECT DISTINCT c.city_id,c.id,c.id customer_id FROM t_customer c,
+                    (SELECT DISTINCT customer_id from t_order WHERE supplier_id = ?supplier_id ) a
+                     WHERE c.id = a.customer_id) b
+                WHERE b.city_id=c.id
+            ) a WHERE a.province_id = p.id
+            and a.id  in ('0'
+              {% for area_id in area_ids %}
+              ,'{{area_id}}'
+              {% endfor %}
+         )
+         )
+        {% endif %}
+       {% if keyword!="" %}
+                   and (o.order_no ilike '%'||?keyword||'%' or o.goods_name  ilike '%'||?keyword||'%' or CnFirstChar(o.goods_name)  ilike '%'||?keyword||'%')
+       {% endif%}
+        {% if customer_name!="" %}
+                     and c.name ilike '%'||?customer_name||'%'
+        {% endif%}
+
+
+[[query.order.for.supplier.list]]
+with tmp as (
+    SELECT
+          tc.name customer_name,
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.order_status,
+          o.goods_id,
+          tg.cate_lv2_id,
+          o.goods_name,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.w_receive_amount,
+          o.s_receive_amount,
+          o.dispatch_amount,
+          o.order_memo ,
+          case when o.order_status=1 or o.order_status=2 then 1 else (case when o.order_status = 10 then 2 when o.order_status = 13 then 3 else 4 end) end receive_status,
+          o.receive_time,
+          o.ship_time,
+          o.order_time,
+          CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                      CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+                   ELSE
+                     CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+                  END time_ordering,
+          o.order_status status,
+          o.dispatch_type ,
+          o.dispatch_status ,
+          o.receive_address,
+          o.receive_contact,
+          o.warehouse_id,
+          o.buy_from_supplier_price,
+          o.sale_to_customer_price,
+          o.ship_type,
+          o.order_status_change_reason,
+          CASE WHEN osr.ship_status_num ISNULL THEN 0 ELSE  osr.ship_status_num END ship_status_num
+    FROM t_order o
+    INNER JOIN t_goods tg ON o.goods_id = tg.id
+    INNER JOIN t_customer tc ON o.customer_id = tc.id
+    {% if temp=="1" && order_status== 3%}
+     INNER JOIN  t_account_role_goods_priv argp ON argp.account_id = ?account_id and argp.role_id = (select id from t_role where role_code = 'spl_order_admin') and argp.goods_id = o.goods_id and argp.status = 1
+    {% endif%}
+     LEFT JOIN (SELECT count(ship_status) ship_status_num,order_id FROM t_order_ship_record WHERE  ship_status !=1 GROUP BY order_id ) osr ON osr.order_id = o.id
+    left join t_product_category pc on pc.id = tg.cate_lv2_id and pc.status = 1
+    WHERE  o.supplier_id=?supplier_id and order_status != 16
+            {% if order_status==3 %}
+            and o.dispatch_status!=1 and o.order_status=1
+            {% endif%}
+            {% if order_status==1 %}
+            and o.dispatch_status=1 and o.order_status=1
+            {% endif%}
+            {% if order_status==11 %}
+            and (o.order_status=11 or o.order_status = 15 or o.order_status = 14 )
+            {% endif%}
+            {% if order_status!=3 && order_status!=0  && order_status!=1 && order_status!=11 %}
+            and o.order_status=?order_status
+            {% endif%}
+            {% if cate_lv1_id!="" %}
+            and tg.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if warehouse_id=="0" %}
+            and dispatch_type=1
+            {% endif%}
+            {% if warehouse_id!="" && warehouse_id!="0" %}
+            and o.warehouse_id=?warehouse_id
+            {% endif%}
+            {% if !start_order_time.IsZero() %}
+            and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+            {% endif%}
+            {% if !end_order_time.IsZero() %}
+            and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+            {% endif%}
+            {% if !start_order_sign_time.IsZero() %}
+            and o.order_sign_time>=to_date(?start_order_sign_time,'YYYY-MM-DD')
+            {% endif%}
+            {% if !end_order_sign_time.IsZero() %}
+            and o.order_sign_time<to_date(?end_order_sign_time,'YYYY-MM-DD')+1
+            {% endif%}
+            {% if !start_ship_time.IsZero() %}
+            and o.SHIP_TIME>=to_timestamp(?start_ship_time,'YYYY-MM-DD hh24:mi:ss')
+            {% endif%}
+            {% if !end_ship_time.IsZero() %}
+            and o.SHIP_TIME<=to_timestamp(?end_ship_time,'YYYY-MM-DD hh24:mi:ss')
+            {% endif%}
+            {% if areaIdsLen != 0 %}
+                     and customer_id in (
+                     SELECT customer_id AS name FROM  t_province p ,
+                        (SELECT c.id,c.province_id,c.name,b.customer_id FROM t_city c,
+                            (SELECT DISTINCT c.city_id,c.id,c.id customer_id FROM t_customer c,
+                                (SELECT DISTINCT customer_id from t_order WHERE supplier_id = ?supplier_id ) a
+                                 WHERE c.id = a.customer_id) b
+                            WHERE b.city_id=c.id
+                        ) a WHERE a.province_id = p.id
+                        and a.id  in ('0'
+                              {% for area_id in area_ids %}
+                              ,'{{area_id}}'
+                              {% endfor %}
+                          )
+                     )
+            {% endif %}
+            {% if keyword!="" %}
+            and (o.order_no ilike '%'||?keyword||'%' or o.goods_name  ilike '%'||?keyword||'%' or CnFirstChar(o.goods_name)  ilike '%'||?keyword||'%')
+            {% endif%}
+             {% if customer_name!="" %}
+              and tc.name ilike '%'||?customer_name||'%'
+             {% endif%}
+    ORDER BY
+    {% if order == "ascend" and field == "customer_name" %}
+      tc.name COLLATE "zh_CN.utf8" asc,
+    {% endif%}
+    {% if order == "descend" and field == "customer_name" %}
+      tc.name COLLATE "zh_CN.utf8" desc,
+    {% endif%}
+    {% if order == "ascend" and field == "cate_lv2_name" %}
+          pc.name COLLATE "zh_CN.utf8" asc,
+    {% endif%}
+    {% if order == "descend" and field == "cate_lv2_name" %}
+          pc.name COLLATE "zh_CN.utf8" desc,
+    {% endif%}
+    order_time DESC, order_no,order_sub_no
+     {% if !reportTemp %}
+      limit ?page_size offset (?page_num - 1) * ?page_size
+     {% endif %}
+)
+SELECT
+  tmp.*,
+  pc.name cate_lv2_name,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when tmp.status=1 and tmp.ship_type = 2 then 2
+       when tmp.status=1 and tmp.ship_type = 1 and tmp.ship_status_num = 0 then 4
+       when tmp.ship_type = 1 then 7
+       else 3 end operate_status,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then '待派单'
+       when tmp.dispatch_status=1 and tmp.status=1 then tm.meta_desc
+       else tm.meta_desc end order_status_desc,
+  case when tmp.dispatch_type=1 then '直供' else tw.name end warehouse_name,
+      case when tmp.order_status=1 or tmp.order_status=2 then -1
+           when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+           when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+           else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money
+FROM tmp
+left join t_metadata_map tm on tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+left join t_warehouse tw on tmp.warehouse_id=tw.id
+left join t_product_category pc on pc.id = tmp.cate_lv2_id and pc.status = 1
+ORDER BY
+{% if order == "ascend" and field == "customer_name" %}
+      tmp.customer_name COLLATE "zh_CN.utf8" asc,
+{% endif%}
+{% if order == "descend" and field == "customer_name" %}
+      tmp.customer_name COLLATE "zh_CN.utf8" desc,
+{% endif%}
+{% if order == "ascend" and field == "cate_lv2_name" %}
+      pc.name COLLATE "zh_CN.utf8" asc,
+{% endif%}
+{% if order == "descend" and field == "cate_lv2_name" %}
+      pc.name COLLATE "zh_CN.utf8" desc,
+{% endif%}
+ tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[query.order.for.supplier.export.list]]
+with tmp as (
+    SELECT
+          tc.name customer_name,
+          tg.cate_lv2_id,
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.order_status,
+          o.goods_id,
+          o.goods_name,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.w_receive_amount,
+          o.s_receive_amount,
+          o.dispatch_amount,
+          o.order_memo,
+          case when o.order_status=1 or o.order_status=2 then 1 else (case when o.order_status = 10 then 2 when o.order_status = 13 then 3 else 4 end) end receive_status,
+          o.receive_time,
+          o.order_time,
+            CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                      CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+                   ELSE
+                     CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+                  END time_ordering,
+          o.order_status status,
+          o.dispatch_type ,
+          o.dispatch_status ,
+          o.receive_address,
+          o.receive_contact,
+          o.warehouse_id,
+          o.buy_from_supplier_price,
+          o.order_status_change_reason
+    FROM t_order o
+     INNER JOIN t_goods tg ON o.goods_id = tg.id
+     INNER JOIN t_customer tc ON  o.customer_id = tc.id
+    {% if temp=="1" && order_status== 3%}
+        INNER JOIN  t_account_role_goods_priv argp ON argp.account_id = ?account_id and argp.role_id = (select id from t_role where role_code = 'spl_order_admin') and argp.goods_id = o.goods_id and argp.status = 1
+    {% endif%}
+    left join t_product_category pc on pc.id = tg.cate_lv2_id and pc.status = 1
+    WHERE o.order_status != 16
+    and o.supplier_id=?supplier_id
+            {% if order_status==3 %}
+            and o.dispatch_status!=1 and o.order_status=1
+           {% endif%}
+            {% if order_status==1 %}
+            and o.dispatch_status=1 and o.order_status=1
+            {% endif%}
+            {% if order_status==11 %}
+            and (o.order_status=11 or o.order_status = 15 o.order_status = 14 )
+            {% endif%}
+            {% if order_status!=3 && order_status!=0  && order_status!=1 && order_status!=11 %}
+            and o.order_status=?order_status
+            {% endif%}
+            {% if cate_lv1_id!="" %}
+            and tg.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if warehouse_id=="0" %}
+            and dispatch_type=1
+            {% endif%}
+            {% if warehouse_id!="" && warehouse_id!="0" %}
+            and o.warehouse_id=?warehouse_id
+            {% endif%}
+            {% if !start_order_time.IsZero() %}
+            and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+            {% endif%}
+            {% if !end_order_time.IsZero() %}
+            and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+            {% endif%}
+            {% if !start_order_sign_time.IsZero() %}
+            and o.order_sign_time>=to_date(?start_order_sign_time,'YYYY-MM-DD')
+            {% endif%}
+            {% if !end_order_sign_time.IsZero() %}
+            and o.order_sign_time<to_date(?end_order_sign_time,'YYYY-MM-DD')+1
+            {% endif%}
+            {% if areaIdsLen != 0 %}
+                     and customer_id in (
+                     SELECT customer_id AS name FROM  t_province p ,
+                        (SELECT c.id,c.province_id,c.name,b.customer_id FROM t_city c,
+                            (SELECT DISTINCT c.city_id,c.id,c.id customer_id FROM t_customer c,
+                                (SELECT DISTINCT customer_id from t_order WHERE supplier_id = ?supplier_id ) a
+                                 WHERE c.id = a.customer_id) b
+                            WHERE b.city_id=c.id
+                        ) a WHERE a.province_id = p.id
+                        and a.id  in ('0'
+                              {% for area_id in area_ids %}
+                              ,'{{area_id}}'
+                              {% endfor %}
+                          )
+                     )
+            {% endif %}
+            {% if keyword!="" %}
+            and (o.order_no ilike '%'||?keyword||'%' or tc.name ilike '%'||?keyword||'%' or o.goods_name ilike '%'||?keyword||'%')
+            {% endif%}
+    ORDER BY
+      {% if order == "ascend" and field == "customer_name" %}
+           tc.name COLLATE "zh_CN.utf8" asc,
+         {% endif%}
+         {% if order == "descend" and field == "customer_name" %}
+           tc.name COLLATE "zh_CN.utf8" desc,
+         {% endif%}
+         {% if order == "ascend" and field == "cate_lv2_name" %}
+               pc.name COLLATE "zh_CN.utf8" asc,
+         {% endif%}
+         {% if order == "descend" and field == "cate_lv2_name" %}
+               pc.name COLLATE "zh_CN.utf8" desc,
+         {% endif%}
+    order_time DESC, order_no,order_sub_no
+)
+SELECT
+  tmp.*,
+  pc.name cate_lv2_name,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when tmp.status=1 or tmp.status=2  then 2
+       else 3 end operate_status,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then '待派单'
+       when tmp.dispatch_status=1 and tmp.status=1 then tm.meta_desc
+       else tm.meta_desc end order_status_desc,
+  case when tmp.dispatch_type=1 then '直供' else tw.name end warehouse_name,
+    case when tmp.order_status=1 or tmp.order_status=2 then -1
+         when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+         when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+         else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money
+FROM tmp  left join t_metadata_map tm
+on tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+left join t_warehouse tw on tmp.warehouse_id=tw.id
+left join t_product_category pc on pc.id = tmp.cate_lv2_id and pc.status = 1
+ORDER BY
+{% if order == "ascend" and field == "customer_name" %}
+     tmp.customer_name COLLATE "zh_CN.utf8" asc,
+{% endif%}
+{% if order == "descend" and field == "customer_name" %}
+     tmp.customer_name COLLATE "zh_CN.utf8" desc,
+{% endif%}
+{% if order == "ascend" and field == "cate_lv2_name" %}
+      pc.name COLLATE "zh_CN.utf8" asc,
+{% endif%}
+{% if order == "descend" and field == "cate_lv2_name" %}
+      pc.name COLLATE "zh_CN.utf8" desc,
+{% endif%}
+ tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[query.order.for.order.cnt]]
+select count(1) cnt from t_order o ,t_goods tg,t_customer c
+where o.goods_id=tg.id and o.dispatch_status=1 and o.dispatch_type=2 and c.id = o.customer_id
+and o.warehouse_id=?warehouse_id
+{% if order_status==11 %}
+and ( o.order_status=11  or o.order_status=15 or o.order_status = 14)
+{% endif%}
+{% if order_status!=0 && order_status!=11 %}
+and o.order_status=?order_status
+{% endif%}
+{% if order_status==0 %}
+and (o.order_status!=6 or o.order_status!=16)
+{% endif%}
+{% if cate_lv1_id!="" %}
+and tg.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if !start_order_time.IsZero() %}
+and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+{% endif%}
+{% if !end_order_time.IsZero() %}
+and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+{% endif%}
+{% if keyword!="" %}
+ and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%' or o.goods_name ilike '%'||?keyword||'%'
+ or CnFirstChar(c.name) ilike '%'||?keyword||'%' or CnFirstChar(o.goods_name) ilike '%'||?keyword||'%'
+ )
+{% endif%}
+
+
+[[query.order.for.order.list]]
+with tmp as (
+    SELECT
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.goods_id,
+          o.goods_name,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.w_receive_amount,
+          o.s_receive_amount,
+          o.dispatch_amount,
+          o.buy_from_supplier_price,
+          o.sale_to_customer_price,
+          o.order_memo ,
+          o.receive_time,
+          o.ship_time,
+          case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+          o.order_time,
+            CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                      CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+                   ELSE
+                     CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+                  END time_ordering,
+          o.dispatch_type,
+          o.dispatch_status,
+          o.order_status status,
+          o.order_status,
+          o.receive_address,
+          c.name customer_name,
+          o.receive_contact,
+          o.ship_type,
+          CASE WHEN    osr.ship_status_num ISNULL THEN 0 ELSE  osr.ship_status_num END ship_status_num
+    FROM t_order o
+    INNER JOIN t_goods tg ON  o.goods_id = tg.id
+    INNER JOIN t_customer c ON c.id =  o.customer_id
+    LEFT JOIN (SELECT count(ship_status) ship_status_num,order_id FROM t_order_ship_record WHERE  ship_status in (2,13) GROUP BY order_id ) osr ON osr.order_id = o.id
+    WHERE  o.dispatch_status=1 and o.dispatch_type=2
+    and o.warehouse_id=?warehouse_id
+    {% if order_status==11 %}
+    and ( o.order_status=11  or o.order_status=15  or o.order_status = 14)
+    {% endif%}
+    {% if order_status!=0 && order_status!=11 %}
+    and o.order_status=?order_status
+    {% endif%}
+    {% if order_status==0 %}
+    and (o.order_status!=6 or o.order_status!=16)
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+    {% endif%}
+    {% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%' or o.goods_name ilike '%'||?keyword||'%'
+    or CnFirstChar(c.name) ilike '%'||?keyword||'%' or CnFirstChar(o.goods_name) ilike '%'||?keyword||'%'
+    )
+    {% endif%}
+    ORDER BY
+        {% if order == "ascend" and field == "customer_name" %}
+             c.name COLLATE "zh_CN.utf8" asc,
+        {% endif%}
+        {% if order == "descend" and field == "customer_name" %}
+             c.name COLLATE "zh_CN.utf8" desc,
+        {% endif%}
+    order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT
+  tmp.*,
+   case when tmp.status=1 and tmp.ship_type = 2 then 1
+    when tmp.status=1 and tmp.ship_type = 1 and tmp.ship_status_num !=0 then 5
+        when tmp.status=1 and tmp.ship_type = 1 and tmp.ship_status_num =0 then 8
+        when tmp.ship_type = 1 and tmp.status=13 and tmp.receive_amount < tmp.settle_amount then 10
+        when tmp.status=13 and tmp.receive_amount < tmp.settle_amount then 9
+        when tmp.ship_type = 1 then 7
+        else 4 end operate_status,
+         case when tmp.status=2 or tmp.status=13 then '待收货'
+               else tm.meta_desc end order_status_desc
+FROM tmp ,t_metadata_map tm
+WHERE  tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+ORDER BY
+    {% if order == "ascend" and field == "customer_name" %}
+         tmp.customer_name COLLATE "zh_CN.utf8" asc,
+    {% endif%}
+    {% if order == "descend" and field == "customer_name" %}
+         tmp.customer_name COLLATE "zh_CN.utf8" desc,
+    {% endif%}
+         tmp.order_time DESC, tmp.order_no ,tmp.order_sub_no
+
+[[query.order.for.order.export.list]]
+with tmp as (
+    SELECT
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.goods_id,
+          o.goods_name,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.receive_time,
+          o.ship_time,
+          o.dispatch_amount,
+          o.order_memo,
+          case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+          o.order_time,
+          c.name customer_name,
+          o.dispatch_type,
+          o.dispatch_status,
+          o.order_status status,
+          o.receive_address,
+          o.receive_contact
+    FROM t_order o, t_goods tg ,t_customer c
+    WHERE o.goods_id = tg.id and o.dispatch_status=1 and o.dispatch_type=2 and c.id =  o.customer_id
+    and o.warehouse_id=?warehouse_id
+        {% if order_status==11 %}
+        and ( o.order_status=11  or o.order_status=15 or o.order_status = 14)
+        {% endif%}
+        {% if order_status!=0  && order_status!=11 %}
+        and o.order_status=?order_status
+        {% endif%}
+        {% if order_status==0 %}
+         and (o.order_status!=6 or o.order_status!=16)
+        {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+     and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%' or o.goods_name ilike '%'||?keyword||'%')
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+)
+SELECT
+  tmp.*,
+   case when tmp.status=1 then 1
+        when tmp.status=3 then 2
+        when tmp.status=7 then 3
+        else 4 end operate_status,
+    case when tmp.status=2 or tmp.status=13 then '待收货'
+                   else tm.meta_desc end as order_status_desc
+FROM tmp ,t_metadata_map tm
+WHERE  tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+ORDER BY tmp.order_time DESC, tmp.order_no ,tmp.order_sub_no
+
+[[query.my.orders.cnt]]
+select count(1) cnt from t_order o ,t_goods tg
+where o.goods_id=tg.id and o.customer_id in (select c.id from t_account_child_customer acc
+                                                              inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                              where account_id = ?account_id )
+        {% if customer_id!="" %}
+         and o.customer_id=?customer_id
+        {% endif%}
+        {% if supplier_id!="" %}
+         and o.supplier_id=?supplier_id
+        {% endif%}
+        {% if order_status==2  %}
+         and (o.order_status=2 or o.order_status=10)
+        {% endif%}
+        {% if order_status!=0 && order_status!=2 %}
+         and o.order_status=?order_status
+        {% endif%}
+        {% if cate_lv1_id!="" %}
+        and tg.cate_lv1_id=?cate_lv1_id
+        {% endif%}
+        {% if !start_order_time.IsZero() %}
+        and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+        {% endif%}
+        {% if !end_order_time.IsZero() %}
+        and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+        {% endif%}
+        {% if !start_finish_time.IsZero() %}
+        and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+        {% endif%}
+        {% if !end_finish_time.IsZero() %}
+        and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+        {% endif%}
+        {% if keyword!="" %}
+        and o.goods_name ilike '%'||?keyword||'%'
+        {% endif%}
+
+
+[[query.my.orders.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount ,
+      o.w_receive_amount ,
+      o.s_receive_amount,
+      o.order_memo,
+      case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+      o.order_time,
+      o.dispatch_status,
+      o.order_status status ,
+      o.finish_time,
+      o.sale_to_customer_price,
+      o.order_status,
+      o.order_status_change_reason,
+      o.order_sign_time,
+      o.supplier_id,
+      o.warehouse_id,
+      c.name customer_name,
+      o.supplier_alias_id
+    FROM t_order o, t_goods tg,t_customer c
+    WHERE o.goods_id = tg.id and o.customer_id in (select c.id from t_account_child_customer acc
+                                                               inner join t_customer c on c.status != 3 and c.leaf = 1 and ( c.id = acc.customer_id or c.tree_ids like '%,'||acc.customer_id||',%' or  c.tree_ids like '%,'||acc.customer_id or  c.tree_ids like acc.customer_id||',%' or c.tree_ids like acc.customer_id )
+                                                               where account_id = ?account_id )
+    and o.customer_id=c.id
+    {% if customer_id!="" %}
+    and o.customer_id=?customer_id
+    {% endif%}
+    {% if supplier_id!="" %}
+    and o.supplier_id=?supplier_id
+    {% endif%}
+    {% if order_status==2  %}
+    and( o.order_status=2 or o.order_status=10 or o.order_status=14)
+    {% endif%}
+    {% if order_status==11  %}
+    and( o.order_status=11 or o.order_status=15 )
+    {% endif%}
+    {% if order_status!=0  && order_status!=2 && order_status!=11 %}
+    and o.order_status=?order_status
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and o.goods_name ilike '%'||?keyword||'%'
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select z.*,
+case when sa.id is null then s.name else sa.supplier_alias_name end supplier_name,
+w.name warehouse_name from (
+SELECT
+  tmp.*,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when (tmp.status=2 or tmp.status=4 ) and tmp.dispatch_status=1 then 2
+       else 3 end operate_status,
+  tm.meta_desc order_status_desc,
+  tmp.sale_to_customer_price                       buy_price,
+  case when tmp.status=4 then (select memo from t_order_log where order_id=tmp.id and order_status_af=4 order by create_time desc limit 1 offset 0 ) else '' end memo,
+    case when tmp.order_status=1 or tmp.order_status=2 then -1
+         when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+         when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+         else tmp.receive_amount * tmp.sale_to_customer_price end
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+) z
+left join t_supplier s on s.id = z.supplier_id
+left join t_warehouse w on w.id = z.warehouse_id
+left join t_supplier_alias sa on sa.id = z.supplier_alias_id
+ORDER BY z.order_time DESC, z.order_no,z.order_sub_no
+
+[[query.customer.orders.cnt]]
+select count(1) cnt from t_order o ,t_goods tg
+where o.goods_id=tg.id
+{% if customer_id!="" %}
+ and o.customer_id=?customer_id
+{% endif%}
+{% if supplier_id!="" %}
+ and o.supplier_id=?supplier_id
+{% endif%}
+{% if order_status!=0  %}
+ and o.order_status=?order_status
+{% endif%}
+{% if cate_lv1_id!="" %}
+and tg.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if !start_order_time.IsZero() %}
+and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_order_time.IsZero() %}
+and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if !start_finish_time.IsZero() %}
+and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_finish_time.IsZero() %}
+and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if keyword!="" %}
+and o.goods_name ilike '%'||?keyword||'%'
+{% endif%}
+
+
+[[query.customer.orders.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount,
+      o.w_receive_amount,
+      o.s_receive_amount,
+      case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+      o.order_time,
+      o.dispatch_status,
+      o.order_status status ,
+      o.finish_time,
+      o.sale_to_customer_price,
+      o.order_status,
+      o.order_status_change_reason,
+      o.order_sign_time,
+      o.supplier_id,
+      o.warehouse_id,
+      c.name customer_name,
+      o.unit_id
+    FROM t_order o, t_goods tg,t_customer c
+    WHERE o.goods_id = tg.id
+    and o.customer_id=c.id
+    {% if customer_id!="" %}
+      and o.customer_id=?customer_id
+    {% endif%}
+    {% if supplier_id!="" %}
+      and o.supplier_id=?supplier_id
+    {% endif%}
+    {% if order_status!=0  %}
+     and o.order_status=?order_status
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and o.goods_name ilike '%'||?keyword||'%'
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select z.*,s.name supplier_name ,w.name warehouse_name from (
+SELECT
+  tmp.*,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when (tmp.status=2 or tmp.status=4 ) and tmp.dispatch_status=1 then 2
+       else 3 end operate_status,
+  tm.meta_desc order_status_desc,
+  tmp.sale_to_customer_price                       buy_price,
+  case when tmp.status=4 then (select memo from t_order_log where order_id=tmp.id and order_status_af=4 order by create_time desc limit 1 offset 0 ) else '' end memo,
+   case when tmp.order_status=1 or tmp.order_status=2 then -1
+        when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+        when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+        else tmp.receive_amount * tmp.sale_to_customer_price end real_buy_money
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+) z
+left join t_supplier s on s.id = z.supplier_id
+left join t_warehouse w on w.id = z.warehouse_id
+ORDER BY z.order_time DESC, z.order_no,z.order_sub_no
+
+[[query.customer.orders.export.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount,
+      o.w_receive_amount,
+      o.s_receive_amount,
+      case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+      o.order_time,
+      o.dispatch_status,
+      o.order_status status ,
+      o.finish_time,
+      o.sale_to_customer_price,
+      o.order_status,
+      o.order_status_change_reason,
+      o.order_sign_time,
+      o.supplier_id,
+      o.warehouse_id,
+      c.name customer_name
+    FROM t_order o, t_goods tg,t_customer c
+    WHERE o.goods_id = tg.id
+    and o.customer_id=c.id
+    {% if customer_id!="" %}
+      and o.customer_id=?customer_id
+    {% endif%}
+    {% if supplier_id!="" %}
+      and o.supplier_id=?supplier_id
+    {% endif%}
+    {% if order_status!=0  %}
+     and o.order_status=?order_status
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and o.goods_name ilike '%'||?keyword||'%'
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+)
+select z.*,s.name supplier_name ,w.name warehouse_name from (
+SELECT
+  tmp.*,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when (tmp.status=2 or tmp.status=4 ) and tmp.dispatch_status=1 then 2
+       else 3 end operate_status,
+  tm.meta_desc order_status_desc,
+  tmp.sale_to_customer_price                       buy_price,
+  case when tmp.status=4 then (select memo from t_order_log where order_id=tmp.id and order_status_af=4 order by create_time desc limit 1 offset 0 ) else '' end memo,
+   case when tmp.order_status=1 or tmp.order_status=2 then -1
+        when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+        when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+        else tmp.receive_amount * tmp.sale_to_customer_price end real_buy_money
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+) z
+left join t_supplier s on s.id = z.supplier_id
+left join t_warehouse w on w.id = z.warehouse_id
+ORDER BY z.order_time DESC, z.order_no,z.order_sub_no
+
+[[query.my.orders.export.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount ,
+      o.w_receive_amount ,
+      o.s_receive_amount,
+      case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+      o.order_time,
+      o.dispatch_status,
+      o.order_status status ,
+      o.finish_time,
+      o.sale_to_customer_price,
+      o.order_status,
+      o.order_status_change_reason,
+      o.order_sign_time,
+      o.supplier_id,
+      o.warehouse_id,
+      c.name customer_name
+    FROM t_order o, t_goods tg,t_customer c
+    WHERE o.goods_id = tg.id and o.customer_id in(SELECT acc.customer_id FROM t_account_child_customer acc,t_customer c WHERE acc.account_id=?account_id and c.id =acc.customer_id and c.status=1)
+    and o.customer_id=c.id
+    {% if customer_id!="" %}
+    and o.customer_id=?customer_id
+    {% endif%}
+    {% if supplier_id!="" %}
+    and o.supplier_id=?supplier_id
+    {% endif%}
+    {% if order_status==2  %}
+    and( o.order_status=2 or o.order_status=10 or o.order_status=14)
+    {% endif%}
+    {% if order_status==11  %}
+    and( o.order_status=11 or o.order_status=15 )
+    {% endif%}
+    {% if order_status!=0  && order_status!=2 && order_status!=11 %}
+    and o.order_status=?order_status
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and o.goods_name ilike '%'||?keyword||'%'
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+)
+select z.*,s.name supplier_name ,w.name warehouse_name from (
+SELECT
+  tmp.*,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when (tmp.status=2 or tmp.status=4 ) and tmp.dispatch_status=1 then 2
+       else 3 end operate_status,
+  tm.meta_desc order_status_desc,
+  tmp.sale_to_customer_price                       buy_price,
+  case when tmp.status=4 then (select memo from t_order_log where order_id=tmp.id and order_status_af=4 order by create_time desc limit 1 offset 0 ) else '' end memo,
+    case when tmp.order_status=1 or tmp.order_status=2 then -1
+         when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+         when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+         else tmp.receive_amount * tmp.sale_to_customer_price end
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+) z
+left join t_supplier s on s.id = z.supplier_id
+left join t_warehouse w on w.id = z.warehouse_id
+ORDER BY z.order_time DESC, z.order_no,z.order_sub_no
+
+[[query.my.timeoutOrder.cnt]]
+select count(1) cnt from t_order
+where customer_settle_status != 1
+  and customer_id = ?customerId
+  and bill_date is not null
+  and order_status = 5
+  and bill_date<now()
+
+[[query.jt.orders.cnt]]
+select count(1) cnt from t_order o
+INNER JOIN t_goods tg ON o.goods_id=tg.id
+LEFT JOIN t_supplier s ON s.id =o.supplier_id
+LEFT JOIN t_supplier_alias sa on o.supplier_alias_id = sa.id
+WHERE  exists(
+  select * from t_customer cs
+  inner join (
+     select * from t_account_child_customer where account_id = ?account_id
+  )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+           or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+  where cs.leaf = 1 and cs.status = 1 and o.customer_id = cs.id
+)
+{% if customer_id!="" %}
+and o.customer_id=?customer_id
+{% endif%}
+ {% if order_status==14 %}
+  and o.order_status=16
+ {% endif%}
+{% if order_status==1  %}
+and o.order_status=1
+{% endif%}
+{% if order_status==11  %}
+ and( o.order_status=11 or o.order_status=15 or o.order_status=14)
+{% endif%}
+{% if order_status!=0  && order_status!=11 && order_status!=1 && order_status!=14 %}
+ and o.order_status=?order_status
+{% endif%}
+{% if cate_lv1_id!="" %}
+and tg.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if !start_order_time.IsZero() %}
+and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_order_time.IsZero() %}
+and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if !start_finish_time.IsZero() %}
+and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_finish_time.IsZero() %}
+and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if keyword!="" %}
+and (o.order_no ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%'  or o.goods_name ilike '%'||?keyword||'%' or sa.supplier_alias_name ilike '%'||?keyword||'%'
+ or  CnFirstChar(o.goods_name) ilike '%'||?keyword||'%' or  CnFirstChar(s.name) ilike '%'||?keyword||'%'
+)
+{% endif%}
+
+[[query.jt.orders.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount ,
+      o.s_receive_amount ,
+      o.w_receive_amount ,
+      o.dispatch_amount ,
+      o.order_memo ,
+      case when o.order_status=1 or o.order_status=2 then 1 else (case when o.order_status=10 then 2 else 3 end) end receive_status,
+      o.order_time,
+      o.ship_time,
+       CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                 CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+              ELSE
+                CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+             END time_ordering,
+      o.dispatch_status,
+      o.order_status status,
+      o.finish_time,
+      o.sale_to_customer_price,
+      o.order_status,
+      o.order_status_change_reason,
+      o.customer_id,
+      CASE WHEN sa.id isnull then s.name else sa.supplier_alias_name end supplier_name,
+      o.ship_type,
+      CASE WHEN    osr.ship_status_num ISNULL THEN 0 ELSE  osr.ship_status_num END ship_status_num,
+      CASE WHEN    osr1.ship_status_num ISNULL THEN 0 ELSE  osr1.ship_status_num END ship_status_num1,
+      o.unit_id
+    FROM t_order o
+    INNER JOIN t_goods tg ON o.goods_id=tg.id
+    LEFT JOIN t_supplier s ON s.id =o.supplier_id
+    LEFT JOIN (SELECT count(ship_status) ship_status_num,order_id FROM t_order_ship_record WHERE  ship_status in (9,13) GROUP BY order_id ) osr  ON osr.order_id = o.id
+    LEFT JOIN (SELECT count(ship_status) ship_status_num,order_id FROM t_order_ship_record WHERE  ship_status in (2,10) GROUP BY order_id ) osr1 ON osr1.order_id = o.id
+    LEFT JOIN t_supplier_alias sa on o.supplier_alias_id = sa.id
+    WHERE exists(
+         select * from t_customer cs
+         inner join (
+            select * from t_account_child_customer where account_id = ?account_id
+         )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+                  or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+         where cs.leaf = 1 and cs.status = 1 and o.customer_id = cs.id
+      )
+    {% if customer_id!="" %}
+     and o.customer_id=?customer_id
+    {% endif%}
+    {% if order_status==14  %}
+        and o.order_status=16
+    {% endif%}
+    {% if order_status==1  %}
+    and o.order_status=1
+    {% endif%}
+    {% if order_status==11  %}
+    and( o.order_status=11 or o.order_status=15 or o.order_status=14)
+    {% endif%}
+    {% if order_status!=0 && order_status!=11 && order_status!=1 && order_status!=14 %}
+    and o.order_status=?order_status
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%'  or o.goods_name ilike '%'||?keyword||'%' or sa.supplier_alias_name ilike '%'||?keyword||'%'
+    or  CnFirstChar(o.goods_name) ilike '%'||?keyword||'%' or  CnFirstChar(s.name) ilike '%'||?keyword||'%'
+    )
+    {% endif%}
+    ORDER BY o.order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+select x.*,cus.name customer_name from (
+SELECT
+  tmp.*,
+  case when tmp.status=16 then 12
+       when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when (tmp.status=2 or tmp.status=4 or tmp.status=10 ) and tmp.dispatch_status=1 and tmp.ship_type = 2 then 2
+       when (tmp.status=1 or tmp.status=2 ) and tmp.dispatch_status=1 and tmp.ship_type = 1 and tmp.ship_status_num != 0 and tmp.ship_status_num1 != 0 then 10
+       when (tmp.status=1 or tmp.status=2 ) and tmp.dispatch_status=1 and tmp.ship_type = 1 and tmp.ship_status_num != 0 and tmp.ship_status_num1 = 0 then 11
+       when (tmp.status=1 or tmp.status=2 or tmp.status=10 ) and tmp.dispatch_status=1 and tmp.ship_type = 1 then 6
+       when tmp.status=13 and tmp.dispatch_status=1 and tmp.ship_type = 2 then 8
+       when tmp.status=13 and tmp.dispatch_status=1 and tmp.ship_type = 1 then 9
+       when tmp.status=2 and tmp.dispatch_status=1 and tmp.ship_type = 1 and tmp.ship_status_num !=0 then 9
+       when tmp.ship_type = 1 then 7
+       when tmp.status=9  then 4
+       else 5 end operate_status,
+  tm.meta_desc order_status_desc,
+  tmp.sale_to_customer_price                       buy_price,
+  case when tmp.status=4 then (select memo from t_order_log where order_id=tmp.id and order_status_af=4 order by create_time desc limit 1 offset 0 ) else '' end memo,
+  case when tmp.order_status=1 or tmp.order_status=2 then -1
+       when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+       when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+       else tmp.receive_amount * tmp.sale_to_customer_price end real_buy_money
+
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+
+)x
+left join t_customer cus on cus.id = x.customer_id ORDER BY x.order_time DESC, x.order_no,x.order_sub_no
+
+[[query.jt.objection.orders.cnt]]
+select count(1) cnt from t_order o ,t_goods tg
+where o.goods_id=tg.id and exists (
+    select * from t_customer cs
+    inner join (
+       select * from t_account_child_customer where account_id = ?account_id
+    )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+             or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+    where cs.leaf = 1 and cs.status = 1 and o.customer_id = cs.id
+ )
+and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+{% if customer_id!="" %}
+and o.customer_id=?customer_id
+{% endif%}
+{% if cate_lv1_id!="" %}
+and tg.cate_lv1_id=?cate_lv1_id
+{% endif%}
+{% if !start_order_time.IsZero() %}
+and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+{% endif%}
+{% if !end_order_time.IsZero() %}
+and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+{% endif%}
+{% if keyword!="" %}
+and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+{% endif%}
+
+[[query.jt.objection.orders.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount ,
+      o.s_receive_amount ,
+      o.w_receive_amount ,
+      o.dispatch_amount ,
+      o.order_memo ,
+      o.order_time,
+      o.ship_time,
+        CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                  CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+               ELSE
+                 CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+              END time_ordering,
+      o.dispatch_status,
+      o.order_status status ,
+      o.order_sign_time,
+      o.sale_to_customer_price,
+      o.order_status,
+      o.order_status_change_reason,
+      o.order_sign_time,
+      o.customer_id,
+      o.ship_type,
+      o.unit_id
+    FROM t_order o, t_goods tg
+    WHERE o.goods_id = tg.id and exists (
+          select * from t_customer cs
+          inner join (
+             select * from t_account_child_customer where account_id = ?account_id
+          )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+                   or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+          where cs.leaf = 1 and cs.status = 1 and o.customer_id = cs.id
+       )
+   and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+    {% if customer_id!="" %}
+     and o.customer_id=?customer_id
+    {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+    {% if !reportTemp %}
+         limit ?page_size offset (?page_num - 1) * ?page_size
+    {% endif%}
+)
+select x.*,cus.name customer_name from (
+SELECT
+  tmp.*,
+  case when tmp.status=14 and tmp.ship_type = 2  then 1
+       when tmp.status=14 and tmp.ship_type = 1  then 3
+       when tmp.ship_type = 1 then 7
+       when tmp.status=11 or tmp.status=15 then 2
+       else 5
+       end operate_status,
+  tm.meta_desc order_status_desc,
+  tmp.sale_to_customer_price                       buy_price,
+  case when tmp.status=4 then (select memo from t_order_log where order_id=tmp.id and order_status_af=4 order by create_time desc limit 1 offset 0 ) else '' end memo,
+   case when tmp.order_status=1 or tmp.order_status=2 then -1
+               when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+               when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+               else tmp.receive_amount * tmp.sale_to_customer_price end real_buy_money
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+
+)x
+left join t_customer cus on cus.id = x.customer_id ORDER BY x.order_time DESC, x.order_no,x.order_sub_no
+
+[[query.order.for.supplier.objection.cnt]]
+select count(1) cnt from t_order o ,t_goods tg
+where o.goods_id=tg.id
+and o.supplier_id=?supplier_id and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+        {% if cate_lv1_id!="" %}
+        and tg.cate_lv1_id=?cate_lv1_id
+        {% endif%}
+        {% if warehouse_id=="0" %}
+        and dispatch_type=1
+        {% endif%}
+        {% if warehouse_id!="" && warehouse_id!="0" %}
+        and o.warehouse_id=?warehouse_id
+        {% endif%}
+        {% if !start_order_time.IsZero() %}
+        and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+        {% endif%}
+        {% if !end_order_time.IsZero() %}
+        and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+        {% endif%}
+        {% if keyword!="" %}
+        and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+        {% endif%}
+
+[[query.order.for.supplier.objection.list]]
+with tmp as (
+    SELECT
+          tc.name customer_name,
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.order_status,
+          o.goods_id,
+          o.goods_name,
+          o.goods_pic_url,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.w_receive_amount,
+          o.s_receive_amount,
+          o.dispatch_amount,
+          o.receive_time,
+          o.order_time,
+          o.order_memo ,
+           CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                     CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+                  ELSE
+                    CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+                 END time_ordering,
+          o.order_status status,
+          o.dispatch_type ,
+          o.dispatch_status ,
+          o.receive_address,
+          o.receive_contact,
+          o.order_sign_time,
+          o.warehouse_id,
+          o.buy_from_supplier_price,
+          o.ship_type,
+          o.order_status_change_reason
+    FROM t_order o, t_goods tg,t_customer tc
+    WHERE o.goods_id = tg.id and o.customer_id = tc.id
+    and o.supplier_id=?supplier_id and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+            {% if cate_lv1_id!="" %}
+            and tg.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if warehouse_id=="0" %}
+            and dispatch_type=1
+            {% endif%}
+            {% if warehouse_id!="" && warehouse_id!="0" %}
+            and o.warehouse_id=?warehouse_id
+            {% endif%}
+            {% if !start_order_time.IsZero() %}
+            and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+            {% endif%}
+            {% if !end_order_time.IsZero() %}
+            and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+            {% endif%}
+            {% if keyword!="" %}
+            and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+            {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT
+  tmp.*,
+   case when tmp.status=14 and tmp.ship_type = 2 then 1
+         when tmp.status=11 and tmp.ship_type = 2 then 2
+          when tmp.status=15 and tmp.ship_type = 2  then 3
+            when (tmp.status=15 or tmp.status=11) and tmp.ship_type = 1 then 5
+          when tmp.ship_type = 1 then 7
+         else 4
+         end operate_status,
+  case when tmp.dispatch_type=1 then '直供' else tw.name end warehouse_name,
+  tm.meta_desc order_status_desc,
+   case when tmp.order_status=1 or tmp.order_status=2 then -1
+             when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+             when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+             else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money
+FROM tmp  left join t_metadata_map tm
+on tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+left join t_warehouse tw on tmp.warehouse_id=tw.id
+ORDER BY tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[query.jt.orders.exportList]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount ,
+      o.w_receive_amount ,
+      o.s_receive_amount ,
+      o.dispatch_amount,
+      o.order_memo,
+      case when o.order_status=1 or o.order_status=2 then 1 else 2 end receive_status,
+      o.order_time,
+      o.ship_time,
+      o.dispatch_status,
+      CASE WHEN o.order_status =1 or o.order_status = 16 then 1 else o.order_status end as status,
+      o.finish_time,
+      o.sale_to_customer_price,
+      o.order_status,
+      o.order_status_change_reason,
+      o.customer_id,
+        CASE WHEN sa.id isnull then s.name else sa.supplier_alias_name end supplier_name,
+      o.unit_id
+    FROM t_order o
+    INNER JOIN t_goods tg ON  o.goods_id = tg.id
+    LEFT JOIN  t_supplier s ON s.id = o.supplier_id
+        LEFT JOIN t_supplier_alias sa on o.supplier_alias_id = sa.id
+    WHERE exists (
+        select * from t_customer cs
+        inner join (
+           select * from t_account_child_customer where account_id = ?account_id
+        )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+                 or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+        where cs.leaf = 1 and cs.status = 1 and cs.id = o.customer_id
+      )
+     {% if customer_id!="" %}
+       and o.customer_id=?customer_id
+      {% endif%}
+     {% if order_status==1  %}
+    and o.order_status=1
+     {% endif%}
+       {% if order_status==14  %}
+        and o.order_status=16
+          {% endif%}
+      {% if order_status==11  %}
+       and( o.order_status=11 or o.order_status=15 or o.order_status=14)
+      {% endif%}
+       {% if order_status!=0  && order_status!=11 && order_status!=1 && order_status!=14 %}
+       and o.order_status=?order_status
+       {% endif%}
+    {% if cate_lv1_id!="" %}
+    and tg.cate_lv1_id=?cate_lv1_id
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_finish_time.IsZero() %}
+    and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_finish_time.IsZero() %}
+    and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+     and (o.goods_name ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%'  or o.order_no ilike '%'||?keyword||'%' or sa.supplier_alias_name ilike '%'||?keyword||'%'
+       or  CnFirstChar(o.goods_name) ilike '%'||?keyword||'%' or  CnFirstChar(s.name) ilike '%'||?keyword||'%'
+       )
+    {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+)
+select x.*,cus.name customer_name from (
+SELECT
+  tmp.*,
+  case when tmp.dispatch_status!=1 and tmp.status=1 then 1
+       when (tmp.status=2 or tmp.status=4 ) and tmp.dispatch_status=1 then 2
+       else 3 end operate_status,
+ case when tmp.status=2 or tmp.status=10 then '待收货'
+                else tm.meta_desc end as order_status_desc,
+  tmp.sale_to_customer_price                       buy_price,
+  case when tmp.status=4 then (select memo from t_order_log where order_id=tmp.id and order_status_af=4 order by create_time desc limit 1 offset 0 ) else '' end memo,
+  case when tmp.order_status=1 or tmp.order_status=2 then -1
+            when tmp.order_status=10 then tmp.w_receive_amount * tmp.sale_to_customer_price
+            when tmp.order_status=14 then tmp.s_receive_amount * tmp.sale_to_customer_price
+            else tmp.receive_amount * tmp.sale_to_customer_price end real_buy_money
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+
+)x
+left join t_customer cus on cus.id = x.customer_id ORDER BY x.order_time DESC, x.order_no,x.order_sub_no
+
+[[query.order.for.supplier.objection.export.list]]
+with tmp as (
+    SELECT
+          tc.name customer_name,
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.order_status,
+          o.goods_id,
+          o.goods_name,
+          o.goods_pic_url,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.w_receive_amount,
+          o.s_receive_amount,
+          o.dispatch_amount,
+          o.order_memo,
+          o.receive_time,
+          o.order_time,
+          o.order_status status,
+          o.dispatch_type ,
+          o.dispatch_status ,
+          o.receive_address,
+          o.receive_contact,
+          o.order_sign_time,
+          o.warehouse_id,
+          o.buy_from_supplier_price,
+          o.order_status_change_reason
+    FROM t_order o, t_goods tg,t_customer tc
+    WHERE o.goods_id = tg.id and o.customer_id = tc.id
+    and o.supplier_id=?supplier_id and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+            {% if cate_lv1_id!="" %}
+            and tg.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if warehouse_id=="0" %}
+            and dispatch_type=1
+            {% endif%}
+            {% if warehouse_id!="" && warehouse_id!="0" %}
+            and o.warehouse_id=?warehouse_id
+            {% endif%}
+            {% if !start_order_time.IsZero() %}
+            and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+            {% endif%}
+            {% if !end_order_time.IsZero() %}
+            and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+            {% endif%}
+            {% if keyword!="" %}
+            and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+            {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+)
+SELECT
+  tmp.*,
+   case when tmp.status=14 then 1
+         when tmp.status=11 then 2
+          when tmp.status=15 then 3
+         else 4
+         end operate_status,
+  case when tmp.dispatch_type=1 then '直供' else tw.name end warehouse_name,
+  tm.meta_desc order_status_desc,
+      case when tmp.order_status=1 or tmp.order_status=2 then -1
+           when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+           when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+           else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money
+FROM tmp  left join t_metadata_map tm
+on tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+left join t_warehouse tw on tmp.warehouse_id=tw.id
+ORDER BY tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[query.orders.by.orderids.list]]
+SELECT
+    o.id order_id,
+    o.goods_name,
+    o.order_amount,
+    o.unit,
+    o.order_amount split_amount,
+    wgs.stock_num warehouse_amount
+     FROM t_order o
+LEFT JOIN t_warehouse_goods_stock wgs ON wgs.goods_id = o.goods_id AND wgs.warehouse_id = ?warehouse_id and wgs.status = 1
+where o.id in ('0'
+       {% for order_id in order_ids %}
+       ,'{{order_id}}'
+        {% endfor %}
+      )
+
+[[query.order.memo.by.order.cnt]]
+SELECT count(1) cnt from t_order_memo WHERE order_id=?order_id and status = 1
+
+[[query.order.memo.by.order.list]]
+SELECT
+ CASE om.type WHEN 1 THEN a.name||'('|| c.name ||') 备注:'
+  WHEN 2 THEN a.name||'(物供中心) 备注:'
+  WHEN 3 THEN a.name||'('|| s.name ||') 备注:'
+  WHEN 4 THEN a.name||'('|| w.name ||') 备注:'
+  WHEN 5 THEN a.name||'('|| c.name ||') 备注:'
+  WHEN 6 THEN a.name||'('|| w.name ||') 备注:'
+  WHEN 7 THEN a.name||'('|| s.name ||') 备注:'
+  WHEN 8 THEN a.name||'('|| c.name ||') 备注:'
+  WHEN 9 THEN a.name||'('|| c.name ||') 备注:'
+  WHEN 10 THEN a.name||'(自动备注) 备注:'
+  ELSE '错误备注'
+  END as type_desc,
+  om.type,
+  om.memo,
+  om.create_time
+from t_order_memo om
+INNER JOIN t_order o ON o.id = om.order_id
+INNER JOIN t_account a ON a.id = om.create_account_id
+LEFT JOIN t_supplier s ON s.id = o.supplier_id
+LEFT JOIN t_customer c ON c.id = o.customer_id
+LEFT JOIN t_warehouse w ON w.id = o.warehouse_id
+WHERE om.order_id=?order_id and om.status = 1
+order by om.create_time desc
+
+[[query.order.ship.record.by.order.cnt]]
+select count(1) cnt from t_order_ship_record WHERE order_id=?order_id
+
+[[query.order.ship.record.by.order.list]]
+select
+ROW_NUMBER() over(order by osr.id ) row_num,
+osr.order_id,
+osr.id as key,
+osr.id order_ship_record_id,
+o.order_no,
+o.order_sub_no,
+o.goods_name,
+o.sale_to_customer_price,
+o.order_amount,
+o.order_status,
+o.order_time,
+o.dispatch_amount,
+o.buy_from_supplier_price,
+osr.ship_amount,
+osr.ship_time,
+osr.receive_amount,
+osr.receive_time,
+osr.w_receive_amount,
+osr.w_receive_time,
+osr.s_receive_amount,
+osr.s_receive_time,
+osr.ship_status,
+c.name customer_name,
+CASE osr.ship_status WHEN 1 THEN '待发货'
+WHEN 2 THEN '待收货'
+WHEN 10 THEN '已送达'
+WHEN 13 THEN '已签收'
+WHEN 9 THEN CASE  o.order_status WHEN  9 THEN '已完成'
+                                   WHEN 11 THEN '待审核'
+                                   ELSE '双方已收货' END
+WHEN 15 THEN CASE  o.order_status WHEN  9 THEN '已完成'
+                                   ELSE '待重新收货' END
+WHEN 14 THEN CASE  o.order_status WHEN  9 THEN '已完成'
+                                   ELSE  '待审核' END
+ELSE '已收货' END ship_status_desc
+from t_order_ship_record osr
+INNER JOIN t_order o ON o.id = osr.order_id
+LEFT JOIN t_customer c ON c.id = o.customer_id
+ WHERE order_id=?order_id order by osr.id
+
+[[query.order.count.for.center.group.list]]
+SELECT
+  sum(CASE WHEN t.order_status = 16 THEN t.num ELSE 0 END ) give_back_cnt,
+  sum(CASE WHEN t.order_status = 1 and t.dispatch_status != 1 THEN t.num ELSE 0 END ) await_dispatch_cnt,
+  sum(CASE WHEN t.order_status = 1 and t.dispatch_status = 1 THEN t.num ELSE 0 END ) await_ship_cnt,
+  sum(CASE WHEN t.order_status = 2 THEN t.num ELSE 0 END ) await_receive_cnt,
+  sum(CASE WHEN t.order_status = 10 THEN t.num ELSE 0 END ) warehouse_receive_cnt,
+  sum(CASE WHEN t.order_status = 13 THEN t.num ELSE 0 END ) customer_receive_cnt,
+  sum(CASE WHEN t.order_status = 11 or t.order_status = 14 or t.order_status = 15 THEN t.num ELSE 0 END ) objection_cnt
+FROM (
+  SELECT
+  count(1) num,order_status,dispatch_status
+   FROM t_order o
+   INNER JOIN t_goods tg ON o.goods_id = tg.id
+   INNER JOIN t_customer c ON c.id = o.customer_id
+   LEFT  JOIN t_supplier s ON s.id = o.supplier_id
+  {% if temp=="1" %}
+  INNER JOIN  t_account_role_cust_priv arcp ON arcp.account_id = ?account_id and arcp.role_id = (select id from t_role where role_code = 'cnt_order_admin') and arcp.customer_id = o.customer_id and arcp.status = 1
+  {% endif%}
+   WHERE order_status NOT IN (6,8,9)
+   {% if cate_lv1_id!="" %}
+   and tg.cate_lv1_id=?cate_lv1_id
+   {% endif%}
+   {% if !start_order_time.IsZero() %}
+   and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_order_time.IsZero() %}
+   and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+   {% endif%}
+   {% if !start_finish_time.IsZero() %}
+   and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+   {% endif%}
+   {% if !end_finish_time.IsZero() %}
+   and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+   {% endif%}
+   {% if keyword!="" %}
+   and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%'  or s.name ilike '%'||?keyword||'%'  )
+   {% endif%}
+   {% if goods_name!="" %}
+   and o.goods_name ilike '%'||?goods_name||'%'
+   {% endif%}
+   GROUP BY order_status,dispatch_status
+) t
+
+[[query.order.count.for.warehouse.group.list]]
+SELECT
+  sum(CASE WHEN t.order_status = 1 and t.dispatch_status = 1 THEN t.num ELSE 0 END ) await_ship_cnt,
+  sum(CASE WHEN t.order_status = 2 THEN t.num ELSE 0 END ) await_receive_cnt,
+  sum(CASE WHEN t.order_status = 10 THEN t.num ELSE 0 END ) warehouse_receive_cnt,
+  sum(CASE WHEN t.order_status = 13 THEN t.num ELSE 0 END ) customer_receive_cnt,
+  (  SELECT
+     count(1)
+      FROM t_order o
+      INNER JOIN t_goods tg ON o.goods_id = tg.id
+      INNER JOIN t_customer c ON c.id = o.customer_id
+      WHERE order_status IN (11,14,15) and o.warehouse_id=?warehouse_id) objection_cnt
+FROM (
+  SELECT
+  count(1) num,order_status,dispatch_status
+   FROM t_order o
+   INNER JOIN t_goods tg ON o.goods_id = tg.id
+   INNER JOIN t_customer c ON c.id = o.customer_id
+   WHERE order_status NOT IN (6,8,9) and o.warehouse_id=?warehouse_id
+   {% if cate_lv1_id!="" %}
+   and tg.cate_lv1_id=?cate_lv1_id
+   {% endif%}
+   {% if !start_order_time.IsZero() %}
+   and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+   {% endif%}
+   {% if !end_order_time.IsZero() %}
+   and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+   {% endif%}
+   {% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%' or o.goods_name ilike '%'||?keyword||'%')
+   {% endif%}
+   GROUP BY order_status,dispatch_status
+) t
+
+[[query.order.count.for.supplier.group.list]]
+SELECT
+  (
+  SELECT count(1) FROM t_order o
+  INNER JOIN t_goods tg ON o.goods_id = tg.id
+  INNER JOIN t_customer c ON c.id = o.customer_id
+    {% if temp=="1" %}
+     INNER JOIN t_account_role_goods_priv argp ON  argp.account_id =?account_id  and argp.role_id = (select id from t_role where role_code = 'spl_order_admin') and argp.goods_id = o.goods_id and argp.status = 1
+    {% endif%}
+  WHERE o.order_status = 1 AND o.dispatch_status!=1 AND o.supplier_id=?supplier_id
+    {% if cate_lv1_id!="" %}
+          and tg.cate_lv1_id=?cate_lv1_id
+          {% endif%}
+          {% if warehouse_id=="0" %}
+          and dispatch_type=1
+          {% endif%}
+          {% if warehouse_id!="" && warehouse_id!="0" %}
+          and o.warehouse_id=?warehouse_id
+          {% endif%}
+          {% if !start_order_time.IsZero() %}
+          and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+          {% endif%}
+          {% if !end_order_time.IsZero() %}
+          and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+          {% endif%}
+          {% if !start_order_sign_time.IsZero() %}
+          and o.order_sign_time>=to_date(?start_order_sign_time,'YYYY-MM-DD')
+          {% endif%}
+          {% if !end_order_sign_time.IsZero() %}
+          and o.order_sign_time<to_date(?end_order_sign_time,'YYYY-MM-DD')+1
+          {% endif%}
+          {% if areaIdsLen != 0 %}
+           and customer_id in (
+           SELECT customer_id AS name FROM  t_province p ,
+              (SELECT c.id,c.province_id,c.name,b.customer_id FROM t_city c,
+                  (SELECT DISTINCT c.city_id,c.id,c.id customer_id FROM t_customer c,
+                      (SELECT DISTINCT customer_id from t_order WHERE supplier_id = ?supplier_id ) a
+                       WHERE c.id = a.customer_id) b
+                  WHERE b.city_id=c.id
+              ) a WHERE a.province_id = p.id
+              and a.id  in ('0'
+                {% for area_id in area_ids %}
+                ,'{{area_id}}'
+                {% endfor %}
+           )
+           )
+          {% endif %}
+          {% if keyword!="" %}
+            and (o.order_no ilike '%'||?keyword||'%'  or o.goods_name ilike '%'||?keyword||'%')
+          {% endif%}
+           {% if  customer_name!="" %}
+             and c.name ilike '%'||?customer_name||'%'
+            {% endif%}
+  ) await_dispatch_cnt,
+  sum(CASE WHEN t.order_status = 1 and t.dispatch_status = 1 THEN t.num ELSE 0 END ) await_ship_cnt,
+  sum(CASE WHEN t.order_status = 2 THEN t.num ELSE 0 END ) await_receive_cnt,
+  sum(CASE WHEN t.order_status = 10 THEN t.num ELSE 0 END ) warehouse_receive_cnt,
+  sum(CASE WHEN t.order_status = 13 THEN t.num ELSE 0 END ) customer_receive_cnt,
+  (SELECT
+     count(1)
+      FROM t_order o
+      INNER JOIN t_goods tg ON o.goods_id = tg.id
+      INNER JOIN t_customer c ON c.id = o.customer_id
+      WHERE order_status IN (11,14,15) and o.supplier_id=?supplier_id) objection_cnt
+FROM (
+  SELECT
+  count(1) num,order_status,dispatch_status
+   FROM t_order o
+   INNER JOIN t_goods tg ON o.goods_id = tg.id
+   INNER JOIN t_customer c ON c.id = o.customer_id
+   WHERE order_status NOT IN (6,8,9) and o.supplier_id=?supplier_id
+     {% if cate_lv1_id!="" %}
+           and tg.cate_lv1_id=?cate_lv1_id
+           {% endif%}
+           {% if warehouse_id=="0" %}
+           and dispatch_type=1
+           {% endif%}
+           {% if warehouse_id!="" && warehouse_id!="0" %}
+           and o.warehouse_id=?warehouse_id
+           {% endif%}
+           {% if !start_order_time.IsZero() %}
+           and o.order_time>=to_timestamp(?start_order_time,'YYYY-MM-DD hh24:mi:ss')
+           {% endif%}
+           {% if !end_order_time.IsZero() %}
+           and o.order_time<to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+           {% endif%}
+           {% if !start_order_sign_time.IsZero() %}
+           and o.order_sign_time>=to_date(?start_order_sign_time,'YYYY-MM-DD')
+           {% endif%}
+           {% if !end_order_sign_time.IsZero() %}
+           and o.order_sign_time<to_date(?end_order_sign_time,'YYYY-MM-DD')+1
+           {% endif%}
+           {% if areaIdsLen != 0 %}
+            and customer_id in (
+            SELECT customer_id AS name FROM  t_province p ,
+               (SELECT c.id,c.province_id,c.name,b.customer_id FROM t_city c,
+                   (SELECT DISTINCT c.city_id,c.id,c.id customer_id FROM t_customer c,
+                       (SELECT DISTINCT customer_id from t_order WHERE supplier_id = ?supplier_id ) a
+                        WHERE c.id = a.customer_id) b
+                   WHERE b.city_id=c.id
+               ) a WHERE a.province_id = p.id
+               and a.id  in ('0'
+                 {% for area_id in area_ids %}
+                 ,'{{area_id}}'
+                 {% endfor %}
+            )
+            )
+           {% endif %}
+           {% if keyword!="" %}
+             and (o.order_no ilike '%'||?keyword||'%'  or o.goods_name ilike '%'||?keyword||'%')
+           {% endif%}
+           {% if customer_name!="" %}
+              and c.name ilike '%'||?customer_name||'%'
+           {% endif%}
+   GROUP BY order_status,dispatch_status
+) t
+
+[[query.order.count.for.customer.group.list]]
+SELECT
+sum(CASE WHEN t.order_status = 16 THEN t.num ELSE 0 END ) give_back_cnt,
+  sum(CASE WHEN t.order_status = 1 THEN t.num ELSE 0 END ) await_ship_cnt,
+  sum(CASE WHEN t.order_status = 2 THEN t.num ELSE 0 END ) await_receive_cnt,
+  sum(CASE WHEN t.order_status = 10 THEN t.num ELSE 0 END ) warehouse_receive_cnt,
+  sum(CASE WHEN t.order_status = 13 THEN t.num ELSE 0 END ) customer_receive_cnt,
+  ( SELECT
+      count(1)
+    FROM t_order o
+    INNER JOIN t_goods tg ON o.goods_id=tg.id
+    LEFT JOIN t_supplier s ON s.id =o.supplier_id
+    WHERE o.order_status  IN (11,14,15)
+      and exists (
+      select * from t_customer cs
+      inner join (
+         select * from t_account_child_customer where account_id = ?account_id
+      )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+              or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+      where cs.leaf = 1 and cs.status = 1 and o.customer_id = cs.id
+    )) objection_cnt
+FROM (
+  SELECT
+  count(1) num,o.order_status,dispatch_status
+   FROM t_order o
+  INNER JOIN t_goods tg ON o.goods_id=tg.id
+  LEFT JOIN t_supplier s ON s.id =o.supplier_id
+   WHERE o.order_status NOT IN (6,8,9)
+          {% if customer_id!="" %}
+          and o.customer_id=?customer_id
+          {% endif%}
+          {% if cate_lv1_id!="" %}
+          and tg.cate_lv1_id=?cate_lv1_id
+          {% endif%}
+          {% if !start_order_time.IsZero() %}
+          and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+          {% endif%}
+          {% if !end_order_time.IsZero() %}
+          and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+          {% endif%}
+          {% if !start_finish_time.IsZero() %}
+          and o.finish_time>=to_date(?start_finish_time,'YYYY-MM-DD')
+          {% endif%}
+          {% if !end_finish_time.IsZero() %}
+          and o.finish_time<to_date(?end_finish_time,'YYYY-MM-DD')+1
+          {% endif%}
+          {% if keyword!="" %}
+          and (o.order_no ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%'  or o.goods_name ilike '%'||?keyword||'%')
+          {% endif%}
+   and exists (
+     select * from t_customer cs
+     inner join (
+        select * from t_account_child_customer where account_id = ?account_id
+     )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+             or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+     where cs.leaf = 1 and cs.status = 1 and o.customer_id = cs.id
+   )
+   GROUP BY order_status,dispatch_status
+) t
+
+[[query.order.for.warehouse.objection.cnt]]
+select count(1) cnt from t_order o ,t_goods tg
+where o.goods_id=tg.id
+and o.warehouse_id=?warehouse_id and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+        {% if cate_lv1_id!="" %}
+        and tg.cate_lv1_id=?cate_lv1_id
+        {% endif%}
+        {% if !start_order_time.IsZero() %}
+        and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+        {% endif%}
+        {% if !end_order_time.IsZero() %}
+        and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+        {% endif%}
+        {% if keyword!="" %}
+        and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+        {% endif%}
+
+[[query.order.for.warehouse.objection.list]]
+with tmp as (
+    SELECT
+          tc.name customer_name,
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.order_status,
+          o.goods_id,
+          o.goods_name,
+          o.goods_pic_url,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.w_receive_amount,
+          o.s_receive_amount,
+          o.dispatch_amount,
+          o.receive_time,
+          o.order_time,
+          o.order_memo ,
+           CASE WHEN o.receive_time > coalesce(o.verify_time,'0001-01-01') THEN
+                     CASE WHEN o.receive_time > coalesce(o.order_w_sign_time,'0001-01-01') THEN 3 ELSE 1 END
+                  ELSE
+                    CASE WHEN coalesce(o.verify_time,'0001-01-01')  > coalesce(o.order_w_sign_time,'0001-01-01') THEN 2 ELSE 1 END
+                 END time_ordering,
+          o.order_status status,
+          o.dispatch_type ,
+          o.dispatch_status ,
+          o.receive_address,
+          o.receive_contact,
+          o.order_sign_time,
+          o.warehouse_id,
+          o.buy_from_supplier_price,
+          o.ship_type,
+          o.order_status_change_reason,
+          o.ship_time,
+          o.receive_time
+    FROM t_order o, t_goods tg,t_customer tc
+    WHERE o.goods_id = tg.id and o.customer_id = tc.id
+    and o.warehouse_id=?warehouse_id and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+            {% if cate_lv1_id!="" %}
+            and tg.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if !start_order_time.IsZero() %}
+            and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+            {% endif%}
+            {% if !end_order_time.IsZero() %}
+            and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+            {% endif%}
+            {% if keyword!="" %}
+            and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+            {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT
+  tmp.*,
+   case when tmp.status=14 and tmp.ship_type = 2 then 1
+         when tmp.status=11 and tmp.ship_type = 2 then 2
+          when tmp.status=15 and tmp.ship_type = 2  then 3
+            when (tmp.status=15 or tmp.status=11) and tmp.ship_type = 1 then 5
+          when tmp.ship_type = 1 then 7
+         else 4
+         end operate_status,
+  case when tmp.dispatch_type=1 then '直供' else tw.name end warehouse_name,
+  tm.meta_desc order_status_desc,
+   case when tmp.order_status=1 or tmp.order_status=2 then -1
+             when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+             when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+             else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money
+FROM tmp  left join t_metadata_map tm
+on tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+left join t_warehouse tw on tmp.warehouse_id=tw.id
+ORDER BY tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[query.order.for.warehouse.objection.export.list]]
+with tmp as (
+    SELECT
+          tc.name customer_name,
+          o.id,
+          o.order_no,
+          o.order_sub_no,
+          o.order_status,
+          o.goods_id,
+          o.goods_name,
+          o.goods_pic_url,
+          o.unit,
+          o.order_amount,
+          o.settle_amount,
+          o.receive_amount,
+          o.w_receive_amount,
+          o.s_receive_amount,
+          o.dispatch_amount,
+          o.order_memo,
+          o.receive_time,
+          o.order_time,
+          o.order_status status,
+          o.dispatch_type ,
+          o.dispatch_status ,
+          o.receive_address,
+          o.receive_contact,
+          o.order_sign_time,
+          o.warehouse_id,
+          o.buy_from_supplier_price,
+          o.order_status_change_reason,
+          o.ship_time,
+          o.receive_time
+    FROM t_order o, t_goods tg,t_customer tc
+    WHERE o.goods_id = tg.id and o.customer_id = tc.id
+    and o.warehouse_id=?warehouse_id and (o.order_status = 11 or o.order_status = 14 or o.order_status = 15)
+            {% if cate_lv1_id!="" %}
+            and tg.cate_lv1_id=?cate_lv1_id
+            {% endif%}
+            {% if !start_order_time.IsZero() %}
+            and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+            {% endif%}
+            {% if !end_order_time.IsZero() %}
+            and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+            {% endif%}
+            {% if keyword!="" %}
+            and (o.goods_name ilike '%'||?keyword||'%' or o.order_no ilike '%'||?keyword||'%')
+            {% endif%}
+    ORDER BY order_time DESC, order_no,order_sub_no
+)
+SELECT
+  tmp.*,
+   case when tmp.status=14 then 1
+         when tmp.status=11 then 2
+          when tmp.status=15 then 3
+         else 4
+         end operate_status,
+  case when tmp.dispatch_type=1 then '直供' else tw.name end warehouse_name,
+  tm.meta_desc order_status_desc,
+      case when tmp.order_status=1 or tmp.order_status=2 then -1
+           when tmp.order_status=10 then tmp.w_receive_amount * tmp.buy_from_supplier_price
+           when tmp.order_status=14 then tmp.s_receive_amount * tmp.buy_from_supplier_price
+           else tmp.receive_amount * tmp.buy_from_supplier_price end real_buy_money
+FROM tmp  left join t_metadata_map tm
+on tm.meta_code = 'order_status' AND tm.meta_val = tmp.status
+left join t_warehouse tw on tmp.warehouse_id=tw.id
+ORDER BY tmp.order_time DESC, tmp.order_no,tmp.order_sub_no
+
+[[get.exception.order.by.jt.cnt]]
+    SELECT
+     count(1) cnt
+    FROM t_order o
+    INNER JOIN t_goods tg ON o.goods_id=tg.id
+    INNER JOIN t_customer c ON o.customer_id =c.id and exists (
+       select * from t_customer cs
+       inner join (
+          select * from t_account_child_customer where account_id = '1646'
+       )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+                or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+       where cs.leaf = 1 and cs.status = 1 and c.id = cs.id
+    )
+    LEFT JOIN t_supplier s ON s.id =o.supplier_id
+    WHERE o.order_status in (13,10,11,14,15) and to_char(o.order_time,'YYYY-MM')< to_char(now(),'YYYY-MM')
+    {% if order_status==1  %}
+    and o.order_status=13
+    {% endif%}
+    {% if order_status==2  %}
+    and o.order_status=10
+    {% endif%}
+    {% if order_status==3  %}
+    and o.order_status in(11,14,15)
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_ship_time.IsZero() %}
+    and o.ship_time>=to_date(?start_ship_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_ship_time.IsZero() %}
+    and o.ship_time<to_date(?end_ship_time,'YYYY-MM-DD')+1
+    {% endif%}
+     {% if !start_receive_time.IsZero() %}
+    and o.receive_time>=to_date(?start_receive_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_receive_time.IsZero() %}
+    and o.receive_time<to_date(?end_receive_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%'  or o.goods_name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%'
+       or CnFirstChar(s.name) ilike '%'||?keyword||'%'  or CnFirstChar(o.goods_name) ilike '%'||?keyword||'%' or CnFirstChar(c.name) ilike '%'||?keyword||'%'
+    )
+    {% endif%}
+
+[[get.exception.order.by.jt.list]]
+with tmp as (
+    SELECT
+      o.id,
+      o.order_no,
+      o.order_sub_no,
+      o.goods_name,
+      o.goods_pic_url,
+      o.unit,
+      o.order_amount,
+      o.settle_amount,
+      o.receive_amount ,
+      o.s_receive_amount ,
+      o.w_receive_amount ,
+      o.dispatch_amount ,
+      o.order_memo ,
+      o.order_time,
+      o.ship_time,
+      o.receive_time,
+      o.dispatch_status,
+      o.order_status,
+      o.finish_time,
+      o.sale_to_customer_price,
+      o.order_status_change_reason,
+      o.customer_id,
+      s.name supplier_name,
+      c.name customer_name,
+      o.unit_id
+    FROM t_order o
+    INNER JOIN t_goods tg ON o.goods_id=tg.id
+    INNER JOIN t_customer c ON o.customer_id =c.id and exists (
+        select * from t_customer cs
+        inner join (
+           select * from t_account_child_customer where account_id = '1646'
+        )qy on cs.tree_ids like '%,' || qy.customer_id ||',%' or cs.tree_ids like '%,'|| qy.customer_id
+                 or cs.tree_ids like qy.customer_id||',%' or cs.tree_ids = qy.customer_id or cs.id = qy.customer_id
+        where cs.leaf = 1 and cs.status = 1 and c.id = cs.id
+     )
+    LEFT JOIN t_supplier s ON s.id =o.supplier_id
+    WHERE o.order_status in (13,10,11,14,15) and to_char(o.order_time,'YYYY-MM')< to_char(now(),'YYYY-MM')
+    {% if order_status==1  %}
+    and o.order_status=13
+    {% endif%}
+    {% if order_status==2  %}
+    and o.order_status=10
+    {% endif%}
+    {% if order_status==3  %}
+    and o.order_status in(11,14,15)
+    {% endif%}
+    {% if !start_order_time.IsZero() %}
+    and o.order_time>=to_date(?start_order_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_order_time.IsZero() %}
+    and o.order_time<to_date(?end_order_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if !start_ship_time.IsZero() %}
+    and o.ship_time>=to_date(?start_ship_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_ship_time.IsZero() %}
+    and o.ship_time<to_date(?end_ship_time,'YYYY-MM-DD')+1
+    {% endif%}
+     {% if !start_receive_time.IsZero() %}
+    and o.receive_time>=to_date(?start_receive_time,'YYYY-MM-DD')
+    {% endif%}
+    {% if !end_receive_time.IsZero() %}
+    and o.receive_time<to_date(?end_receive_time,'YYYY-MM-DD')+1
+    {% endif%}
+    {% if keyword!="" %}
+    and (o.order_no ilike '%'||?keyword||'%' or s.name ilike '%'||?keyword||'%'  or o.goods_name ilike '%'||?keyword||'%' or c.name ilike '%'||?keyword||'%'
+    or CnFirstChar(s.name) ilike '%'||?keyword||'%'  or CnFirstChar(o.goods_name) ilike '%'||?keyword||'%' or CnFirstChar(c.name) ilike '%'||?keyword||'%'
+    )
+    {% endif%}
+    ORDER BY o.order_time DESC, order_no,order_sub_no limit ?page_size offset (?page_num - 1) * ?page_size
+)
+SELECT
+  tmp.*,
+  tm.meta_desc order_status_desc,
+  tmp.sale_to_customer_price     buy_price
+FROM tmp ,t_metadata_map tm
+WHERE tm.meta_code = 'order_status' AND tm.meta_val = tmp.order_status order by tmp.order_time desc,order_no,order_sub_no
+
+[[query.order.max.list]]
+select max(order_sub_no) order_id
+from t_order where order_sub_no=(select max(order_sub_no)  from t_order where order_no=?order_no and order_sub_no ilike '%'|| ?ordersubno || '%')
+
+[[query.order.unusual.cnt]]
+select   count(1) cnt
+from  T_ORDER  ta
+INNER JOIN t_metadata_map tm ON tm.meta_code = 'order_status' AND tm.meta_val = ta.order_status
+  where 1=1
+{% if order_status == 15  %}
+   and (ta.order_status = 11 or ta.order_status = 14 or ta.order_status = 15)
+ {% endif%}
+ {% if order_status && order_status != 15 %}
+  and ta.order_status=?order_status
+  {% endif%}
+ {% if !order_status  %}
+     and (ta.order_status=13 or ta.order_status=10 or ta.order_status=15 or ta.order_status=14 or ta.order_status=11)
+ {% endif%}
+        and to_char(ta.ORDER_TIME,'YYYY-MM')<to_char(now(),'YYYY-MM')
+ {% if  !begin_order_time.IsZero() %}
+    and ta.ORDER_TIME>=to_timestamp(?begin_order_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !end_order_time.IsZero() %}
+  and ta.ORDER_TIME<=to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !begin_ship_time.IsZero() %}
+ and ta.ship_time>=to_timestamp(?begin_ship_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if  !end_ship_time.IsZero() %}
+  and ta.ship_time<=to_timestamp(?end_ship_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !begin_order_sign_time.IsZero() %}
+ and ta.receive_time>=to_timestamp(?begin_order_sign_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !end_order_sign_time.IsZero() %}
+ and ta.receive_time<=to_timestamp(?end_order_sign_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+  and(ta.ORDER_NO ilike '%'|| ?keyword || '%' or (select name from t_goods where id=ta.goods_id) ilike '%'|| ?keyword || '%'
+   or (select name from t_CUSTOMER where id=(select parent_customer_id from t_CUSTOMER where id=ta.CUSTOMER_ID))  ilike '%'|| ?keyword || '%'
+   or (select name from t_CUSTOMER where id=ta.CUSTOMER_ID)  ilike '%'|| ?keyword || '%'
+   or CnFirstChar((select name from t_goods where id=ta.goods_id)) ilike '%'|| ?keyword || '%'
+   or CnFirstChar((select name from t_CUSTOMER where id=(select parent_customer_id from t_CUSTOMER where id=ta.CUSTOMER_ID)))  ilike '%'|| ?keyword || '%'
+   or CnFirstChar((select name from t_CUSTOMER where id=ta.CUSTOMER_ID))  ilike '%'|| ?keyword || '%'
+   )
+  and ta.SUPPLIER_ID=?supplier_id
+
+
+
+[[query.order.unusual.list]]
+select   ROW_NUMBER() over(ORDER BY ta.id) row_num,ta.id,ta.ORDER_NO order_no,ta.ORDER_SUB_NO order_sub_no,
+  (select name from t_CUSTOMER where id=(select parent_customer_id from t_CUSTOMER where id=ta.CUSTOMER_ID)) parent_customer_name,
+  (select name from t_CUSTOMER where id=ta.CUSTOMER_ID) customer_name,
+  (select name from t_goods where id=ta.goods_id) goods_name,
+  ta.buy_from_supplier_price,
+  ta.order_time,
+  ta.order_amount,
+  ta.dispatch_amount,
+  ta.ship_time,
+  case when ta.settle_amount>0 then ta.settle_amount
+  else 0  end  settle_amount,
+  ta.receive_amount,
+            case when ta.order_status=1 or ta.order_status=2 then 0
+            when ta.order_status=10 then ta.w_receive_amount * ta.buy_from_supplier_price/100
+            when ta.order_status=14 then ta.s_receive_amount * ta.buy_from_supplier_price/100
+            else ta.receive_amount * ta.buy_from_supplier_price/100 end real_buy_money,
+  ta.receive_time,
+  ta.order_status,
+  tm.meta_desc order_status_desc,
+  ta.order_memo,
+  ta.unit,
+  case when ta.w_receive_amount>0 then ta.w_receive_amount
+  else 0  end  w_receive_amount,
+  case when ta.s_receive_amount>0 then ta.s_receive_amount
+  else 0  end  s_receive_amount
+from  T_ORDER  ta
+INNER JOIN t_metadata_map tm ON tm.meta_code = 'order_status' AND tm.meta_val = ta.order_status
+  where 1=1
+ {% if order_status == 15  %}
+   and (ta.order_status = 11 or ta.order_status = 14 or ta.order_status = 15)
+ {% endif%}
+ {% if order_status && order_status != 15 %}
+  and ta.order_status=?order_status
+  {% endif%}
+ {% if !order_status  %}
+     and (ta.order_status=13 or ta.order_status=10 or ta.order_status=15 or ta.order_status=14 or ta.order_status=11)
+ {% endif%}
+     and to_char(ta.ORDER_TIME,'YYYY-MM')<to_char(now(),'YYYY-MM')
+ {% if  !begin_order_time.IsZero() %}
+    and ta.ORDER_TIME>=to_timestamp(?begin_order_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !end_order_time.IsZero() %}
+  and ta.ORDER_TIME<=to_timestamp(?end_order_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !begin_ship_time.IsZero() %}
+ and ta.ship_time>=to_timestamp(?begin_ship_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if  !end_ship_time.IsZero() %}
+  and ta.ship_time<=to_timestamp(?end_ship_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !begin_order_sign_time.IsZero() %}
+ and ta.receive_time>=to_timestamp(?begin_order_sign_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+ {% if !end_order_sign_time.IsZero() %}
+ and ta.receive_time<=to_timestamp(?end_order_sign_time,'YYYY-MM-DD hh24:mi:ss')
+ {% endif%}
+  and(ta.ORDER_NO ilike '%'|| ?keyword || '%' or (select name from t_goods where id=ta.goods_id) ilike '%'|| ?keyword || '%'
+  or (select name from t_CUSTOMER where id=(select parent_customer_id from t_CUSTOMER where id=ta.CUSTOMER_ID))  ilike '%'|| ?keyword || '%'
+  or (select name from t_CUSTOMER where id=ta.CUSTOMER_ID)  ilike '%'|| ?keyword || '%'
+  or CnFirstChar((select name from t_goods where id=ta.goods_id)) ilike '%'|| ?keyword || '%'
+  or CnFirstChar((select name from t_CUSTOMER where id=(select parent_customer_id from t_CUSTOMER where id=ta.CUSTOMER_ID)))  ilike '%'|| ?keyword || '%'
+  or CnFirstChar((select name from t_CUSTOMER where id=ta.CUSTOMER_ID))  ilike '%'|| ?keyword || '%'
+  )
+  and ta.SUPPLIER_ID=?supplier_id
+  order by cast(ta.id as integer) desc
+   limit ?page_size offset (?page_num - 1) * ?page_size

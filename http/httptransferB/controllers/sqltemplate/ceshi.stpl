@@ -1,0 +1,2 @@
+[[query.goods.list.list]]
+select  * from t_goods

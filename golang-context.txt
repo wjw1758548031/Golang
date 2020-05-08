@@ -1,0 +1,112 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/shopspring/decimal"
+	"time"
+)
+
+func main(){
+	//这个是制定了截止日期，例如什么时候截止
+	/*d := time.Now().Add(1 * time.Second)
+	ctx, cancel := context.WithDeadline(context.Background(), d)*/
+	PaymentAmount := decimal.NewFromFloat(3)
+	fmt.Println(PaymentAmount.Div(decimal.NewFromFloat(3)))
+	//ctx, cancel := context.WithCancel(context.Background())  //这个就是在使用 ctx.Done()取消
+	ctx, cancel := context.WithTimeout(context.Background(),2*time.Second) //这个是超时取消
+	//ctx.Done() 也可以直接这么用
+	valueCtx := context.WithValue(ctx, "a", "add value")
+
+	go watch(valueCtx)
+	time.Sleep(10 * time.Second)
+	//执行的话  哪个携程使用了ctx.Done()  就会退出携程
+	cancel()
+
+	time.Sleep(5 * time.Second)
+
+}
+
+
+
+func watch(ctx context.Context) {
+	for {
+		select {
+		//过快时，这里会执行多次
+		case <-ctx.Done():
+			//get value
+			fmt.Println(ctx.Value("a"), "is cancel 退出")
+			//time.Sleep(2 * time.Second)
+			return
+		default:
+			//get value
+			fmt.Println(ctx.Value("a"), "int goroutine 继续")
+			time.Sleep(2 * time.Second)
+		}
+	}
+}
+
+
+/*package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+var ch chan int
+
+func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan int, 100)
+	go func() {
+		i := 0
+		for {
+			ch <- i
+			//time.Sleep(time.Second * 2)
+			i++
+		}
+
+	}()
+
+	go func(ctx context.Context) {
+		chNum := 0
+		for {
+			select {
+			case <-ctx.Done():
+				fmt.Println("监控退出，停止了...")
+				return
+			default:
+				if chNum == 1 {
+					time.Sleep(time.Second * 2)
+					continue
+				}
+				go func(ctx context.Context) {
+					for{
+						select {
+						case <-ctx.Done():
+							fmt.Println("监控退出，停止了111...")
+							return
+						default:
+							i := <-ch
+							fmt.Println(i)
+							if i == 100{
+								cancel()
+								return
+							}
+						}
+					}
+				}(ctx)
+				chNum++
+			}
+		}
+	}(ctx)
+
+	time.Sleep(5 * time.Second)
+	fmt.Println("可以了，通知监控停止")
+	cancel()
+	time.Sleep(30 * time.Second)
+
+}
+*/

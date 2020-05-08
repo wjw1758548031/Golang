@@ -1,0 +1,303 @@
+[[query.rating.form.list]]
+SELECT rf.*, ROW_NUMBER() over(ORDER BY cast(rf.id as integer) desc) row_num,
+rf.id rating_form_id,
+rf.name rating_form_name,
+tc.name customer_names,
+c.id category_id,
+c.name category_name,
+  CASE WHEN rf.rating_form_status = 1   THEN '1'
+       WHEN rf.rating_form_status = 4 THEN '1'
+       ELSE '0' END operate_status,
+      zt.meta_desc rating_form_status_desc
+ FROM t_rating_form rf
+  left join  t_metadata_map zt on zt.meta_code='rating_form_status' and zt.meta_val=rf.rating_form_status
+   left join t_category c on c.id = rf.category_id
+   left join t_customer tc on tc.id = rf.customer_id
+where rf.status = 1
+{% if temp %}
+          and
+          (
+  --        exists(
+  --  select c.id from t_account_child_customer acc
+   --         INNER JOIN t_customer c on c.id = acc.customer_id
+  --          AND (  rf.customer_id=c.id or c.tree_ids like   rf.customer_id or  c.tree_ids like '%,'||rf.customer_id or  c.tree_ids like  rf.customer_id||',%' or c.tree_ids like '%,'||rf.customer_id||',%' )
+   --          where acc.account_id =account_id)
+  --           or
+              exists(
+                    select c.id from t_account_child_customer acc
+                    INNER JOIN t_customer c on c.id = acc.customer_id
+                    INNER JOIN t_customer c1 on c1.id = rf.customer_id
+                    AND (c1.id=c.id or c1.tree_ids like c.id or  c1.tree_ids like '%,'||c.id or c1.tree_ids like c.id||',%' or c1.tree_ids like '%,'||c.id||',%' )
+                    where acc.account_id =?account_id
+             ))
+{% endif%}
+ {% if keyword!="" %}
+ and (rf.name ilike '%'||?keyword||'%' or CnFirstChar(rf.name) ilike '%'||?keyword||'%')
+ {% endif%}
+ {% if rating_form_status==1 %}
+    and (1 =rf.rating_form_status or 4 =rf.rating_form_status)
+ {% endif%}
+ {% if rating_form_status==2 %}
+    and (2 =rf.rating_form_status or 5 =rf.rating_form_status)
+ {% endif%}
+ {% if rating_form_status==3 %}
+    and (3 =rf.rating_form_status)
+ {% endif%}
+ {% if category_id!="" %}
+    and rf.category_id =?category_id
+ {% endif%}
+ {% if is_using=="1" %}
+     and rf.is_using = true
+ {% endif%}
+ {% if is_using=="2" %}
+     and rf.is_using = FALSE
+ {% endif%}
+ {% if !start_time.IsZero() %}
+     and rf.take_effect_time>=to_date(?start_time,'YYYY-MM-DD')
+ {% endif%}
+ {% if !end_time.IsZero() %}
+     and rf.expired_time<to_date(?end_time,'YYYY-MM-DD')+1
+ {% endif%}
+ order by cast(rf.id as integer) desc
+ limit ?page_size offset (?page_num - 1) * ?page_size
+
+
+[[query.category.list]]
+select id category_id,name category_name
+from t_category
+
+[[query.rating.form.cnt]]
+SELECT count(1) cnt FROM t_rating_form rf
+where status = 1
+{% if temp %}
+       and
+       (
+ --       exists(
+ --        select c.id from t_account_child_customer acc
+ --                   INNER JOIN t_customer c on c.id = acc.customer_id
+ --                   AND (  rf.customer_id=c.id or c.tree_ids like   rf.customer_id or  c.tree_ids like '%,'||rf.customer_id or  c.tree_ids like  rf.customer_id||',%' or c.tree_ids like '%,'||rf.customer_id||',%' )
+ --                   where acc.account_id =account_id)
+ --        or
+          exists(
+          select c.id from t_account_child_customer acc
+          INNER JOIN t_customer c on c.id = acc.customer_id
+          INNER JOIN t_customer c1 on c1.id = rf.customer_id
+          AND (c1.id=c.id or c1.tree_ids like c.id or  c1.tree_ids like '%,'||c.id or c1.tree_ids like c.id||',%' or c1.tree_ids like '%,'||c.id||',%' )
+          where acc.account_id =?account_id
+          ))
+{% endif%}
+ {% if keyword!="" %}
+ and (rf.name ilike '%'||?keyword||'%' or CnFirstChar(rf.name) ilike '%'||?keyword||'%')
+ {% endif%}
+ {% if rating_form_status==1 %}
+    and (1 =rf.rating_form_status or 4 =rf.rating_form_status)
+ {% endif%}
+ {% if rating_form_status==2 %}
+    and (2 =rf.rating_form_status or 5 =rf.rating_form_status)
+ {% endif%}
+ {% if rating_form_status==3 %}
+    and (3 =rf.rating_form_status)
+ {% endif%}
+ {% if category_id!="" %}
+    and rf.category_id =?category_id
+ {% endif%}
+ {% if is_using=="1" %}
+     and rf.is_using = true
+ {% endif%}
+ {% if is_using=="2" %}
+     and rf.is_using = FALSE
+ {% endif%}
+ {% if !start_time.IsZero() %}
+     and rf.take_effect_time>=to_date(?start_time,'YYYY-MM-DD')
+ {% endif%}
+ {% if !end_time.IsZero() %}
+     and rf.expired_time<to_date(?end_time,'YYYY-MM-DD')+1
+ {% endif%}
+
+[[query.rating.form.category.list]]
+select name product_category_name from t_product_category where id in (select cate_lv1_id from T_GOODS where id in
+(select goods_id from T_RATING_FORM_DETAIL where RATING_FORM_ID=?id))
+
+
+
+[[query.rating.form.centrality.list]]
+select ROW_NUMBER() over(ORDER BY cast(ta.id as integer) desc) row_num,ta.id rating_form_id,ta.name rating_form_name,ta.customer_id,
+ta.category_id category_id,
+  (select name from t_category where id=ta.category_id) category_name,
+  ta.is_using is_using,ta.TAKE_EFFECT_TIME take_effect_time,
+  ta.expired_time expired_time,
+  ta.memo,
+         CASE
+                       WHEN ta.rating_form_status = 2   THEN '1'
+                       WHEN ta.rating_form_status = 5  THEN '1'
+                        WHEN ta.rating_form_status = 4  THEN '0'
+                       WHEN ta.rating_form_status = 3 and ta.is_using=true  THEN '2'
+                        WHEN ta.rating_form_status = 3 THEN '3'
+                       ELSE '0' END operate_status ,
+     ta.rating_form_status rating_form_status,
+      zt.meta_desc rating_form_status_desc,
+      tc.name customer_names
+  from T_RATING_FORM ta
+  LEFT JOIN t_customer tc on tc.id=ta.customer_id
+  left join  t_metadata_map zt on zt.meta_code='rating_form_status' and zt.meta_val=ta.rating_form_status
+    where (ta.rating_form_status = 2 or ta.rating_form_status = 3 or ta.rating_form_status = 5 or ta.rating_form_status = 4)
+           and ta.status=1
+     {% if keyword!="" %}
+     and (ta.name ilike '%'||?keyword||'%' or CnFirstChar(ta.name) ilike '%'||?keyword||'%')
+     {% endif%}
+                  {% if rating_form_status==1 %}
+                                   and (1 =ta.rating_form_status or 4 =ta.rating_form_status)
+                             {% endif%}
+                               {% if rating_form_status==2 %}
+                                                and (2 =ta.rating_form_status or 5 =ta.rating_form_status)
+                               {% endif%}
+                                {% if rating_form_status==3 %}
+                                              and (3 =ta.rating_form_status)
+                               {% endif%}
+     {% if category_id!="" %}
+                     and ta.category_id =?category_id
+      {% endif%}
+       {% if is_using=="1" %}
+                           and ta.is_using = true
+      {% endif%}
+      {% if is_using=="2" %}
+                           and ta.is_using = FALSE
+      {% endif%}
+         {% if !start_time.IsZero() %}
+                             and ta.take_effect_time>=to_date(?start_time,'YYYY-MM-DD')
+                             {% endif%}
+                             {% if !end_time.IsZero() %}
+                             and ta.expired_time<to_date(?end_time,'YYYY-MM-DD')+1
+                             {% endif%}
+           order by cast(ta.id as integer) desc
+  limit ?page_size offset (?page_num - 1) * ?page_size
+
+
+
+
+[[query.rating.form.centrality.listall]]
+select           ta.rating_form_status rating_form_status
+  from T_RATING_FORM ta
+    where (ta.rating_form_status = 2 or ta.rating_form_status = 3 or ta.rating_form_status = 5 or ta.rating_form_status = 4)
+           and ta.status=1
+     {% if keyword!="" %}
+     and (ta.name ilike '%'||?keyword||'%' or CnFirstChar(ta.name) ilike '%'||?keyword||'%')
+     {% endif%}
+     {% if category_id!="" %}
+                     and ta.category_id =?category_id
+      {% endif%}
+       {% if is_using=="1" %}
+                           and ta.is_using = true
+      {% endif%}
+      {% if is_using=="2" %}
+                           and ta.is_using = FALSE
+      {% endif%}
+         {% if !start_time.IsZero() %}
+         and ta.take_effect_time>=to_date(?start_time,'YYYY-MM-DD')
+         {% endif%}
+         {% if !end_time.IsZero() %}
+         and ta.expired_time<to_date(?end_time,'YYYY-MM-DD')+1
+         {% endif%}
+
+
+
+
+
+[[query.rating.form.centrality.cnt]]
+  select count(1) cnt
+    from T_RATING_FORM ta
+   left join  t_metadata_map zt on zt.meta_code='rating_form_status' and zt.meta_val=ta.rating_form_status
+ where (ta.rating_form_status = 2 or ta.rating_form_status = 3 or ta.rating_form_status = 5 or ta.rating_form_status = 4)        and ta.status=1
+     {% if keyword!="" %}
+      and (ta.name ilike '%'||?keyword||'%' or CnFirstChar(ta.name) ilike '%'||?keyword||'%')
+      {% endif%}
+                   {% if rating_form_status==1 %}
+                                    and (1 =ta.rating_form_status or 4 =ta.rating_form_status)
+                              {% endif%}
+                                {% if rating_form_status==2 %}
+                                                 and (2 =ta.rating_form_status or 5 =ta.rating_form_status)
+                                {% endif%}
+                                 {% if rating_form_status==3 %}
+                                               and (3 =ta.rating_form_status)
+                                {% endif%}
+      {% if category_id!="" %}
+                      and ta.category_id =?category_id
+       {% endif%}
+        {% if is_using=="1" %}
+                            and ta.is_using = true
+       {% endif%}
+       {% if is_using=="2" %}
+                            and ta.is_using = FALSE
+       {% endif%}
+          {% if !start_time.IsZero() %}
+             and ta.take_effect_time>=to_date(?start_time,'YYYY-MM-DD')
+        {% endif%}
+                              {% if !end_time.IsZero() %}
+                              and ta.expired_time<to_date(?end_time,'YYYY-MM-DD')+1
+                              {% endif%}
+
+
+
+[[query.rating.form.detall.list]]
+select ROW_NUMBER() over(ORDER BY cast(ta.id as integer)) row_num,
+          ta.id rating_form_detail_id,
+          ta.goods_id,
+          go.name goods_name,
+          u.id unit_id,
+          u.name unit_name,
+          go.id||'-'||u.id id,
+          go.name||'----'||COALESCE(sp.name,'')||'----'||u.name as name,
+          ca.name category_name,
+          sp.name specification_name,
+          go.unit,
+          ta.ex_sale_to_customer_price,
+          ta.limit_sale_to_customer_price,
+          ta.report_sale_to_customer_price,
+          ta.sale_to_customer_price,
+          case when ta.ex_sale_to_customer_price !=report_sale_to_customer_price and ex_sale_to_customer_price != 0 THEN 1 ELSE 2 END operate_status,
+          ta.status,
+          ta.create_time,ta.update_time,
+         go.cate_lv2_id cate_lv2_id,
+         (select name from t_product_category where id = go.cate_lv2_id) cate_lv2_name,
+         go.goods_code goods_code,
+         go.status goods_status,
+         ta.need_ratity_amount need_ratity_amount,
+         ta.can_allopatric_allot can_allopatric_allot
+        from  T_RATING_FORM_DETAIL ta
+        LEFT JOIN t_unit u ON u.id = ta.unit_id
+        LEFT JOIN t_goods go on  go.id=ta.goods_id
+        left join t_category ca on ca.id=go.category_id and ca.status=1
+        left join t_specification sp on sp.id=go.specification_id and sp.status=1
+        where RATING_FORM_ID=?rating_form_id
+        and ta.status=1
+        ORDER BY  ta.REPORT_SALE_TO_CUSTOMER_PRICE!=ta.ex_sale_to_customer_price desc
+
+
+
+[[query.rating.form.customer.list]]
+ select cu.id customer_id,cu.name customer_name
+ from  t_rating_form_cust_rpt ta
+ LEFT JOIN T_CUSTOMER cu on cu.id=ta.customer_id
+ where rating_form_id=?rating_form_id         and ta.status=1
+       and cu.status=1
+
+
+[[query.rating.form.supplier.list]]
+select
+case when sa.id ='0' then tb.name else sa.supplier_alias_name end supplier_name,tb.id supplier_id,ta.rating_form_detail_id,
+ta.is_default,ta.supplier_alias_id
+from t_rating_form_goods_supplier ta
+left join t_supplier tb on ta.supplier_id=tb.id
+  left join t_rating_form_detail rfd on rfd.id = ta.rating_form_detail_id
+left join (
+              SELECT  a.id,a.supplier_alias_name,a.supplier_id,a.status from t_supplier_alias a  UNION
+              SELECT '0','','',1
+                    ) sa on sa.id = ta.supplier_alias_id and sa.status = 1
+where rfd.rating_form_id = ?rating_form_id and ta.status=1 and tb.status=1
+ORDER BY  rfd.REPORT_SALE_TO_CUSTOMER_PRICE!=rfd.ex_sale_to_customer_price desc,rfd.goods_id,ta.is_default desc
+
+
+
+
+
+
